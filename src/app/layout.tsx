@@ -24,7 +24,7 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
           referrerPolicy="no-referrer" 
         />
       </head>
-      <body className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100">
+      <body className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-green-50 text-gray-900">
         {children}
       </body>
     </html>

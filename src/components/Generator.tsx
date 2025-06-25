@@ -14,12 +14,12 @@ const Header = ({ index, title, description }: HeaderProps) => {
   return (
     <div className='flex flex-col gap-3 text-center mb-8'>
       <div className='flex items-center justify-center gap-4'>
-        <div className='flex items-center justify-center w-12 h-12 bg-blue-500/20 rounded-full'>
-          <span className='text-xl font-bold text-blue-400'>{index}</span>
+        <div className='flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full'>
+          <span className='text-xl font-bold text-emerald-600'>{index}</span>
         </div>
-        <h4 className='text-2xl sm:text-3xl font-semibold'>{title}</h4>
+        <h4 className='text-2xl sm:text-3xl font-semibold text-gray-900'>{title}</h4>
       </div>
-      <p className='text-slate-300 max-w-md mx-auto leading-relaxed'>{description}</p>
+      <p className='text-gray-600 max-w-md mx-auto leading-relaxed'>{description}</p>
     </div>
   )
 }
@@ -77,8 +77,8 @@ const Generator = ({
                 }} 
                 className={`relative border-2 duration-200 px-6 py-4 rounded-xl transition-all cursor-pointer ${
                   type === poison 
-                    ? 'border-blue-400 bg-blue-600 text-white' 
-                    : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-blue-500 hover:text-white hover:border-blue-400'
+                    ? 'border-emerald-500 bg-emerald-600 text-white shadow-lg shadow-emerald-500/30' 
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-emerald-500 hover:text-white hover:border-emerald-400 hover:shadow-md hover:shadow-emerald-500/20'
                 }`}
               >
                 <p className='capitalize font-medium text-sm sm:text-base'>
@@ -93,29 +93,29 @@ const Generator = ({
         <div>
           <Header index={'02'} title={'Select target muscles'} description={"Choose the muscle groups you want to focus on for this session."} />
           <div className='max-w-md mx-auto'>
-            <div className='bg-slate-900/50 backdrop-blur-sm border-2 border-slate-700 rounded-xl overflow-hidden hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-300'>
+            <div className='bg-white border-2 border-gray-300 rounded-xl overflow-hidden hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-300'>
               <button 
                 onClick={toggleModal} 
-                className='relative w-full p-4 flex items-center justify-between hover:bg-blue-500/10 transition-all duration-200 active:bg-slate-700/50 group'
+                className='relative w-full p-4 flex items-center justify-between hover:bg-emerald-50 transition-all duration-200 active:bg-emerald-100 group'
               >
                 <div className='flex items-center gap-3'>
                   {muscles.length > 0 && (
-                    <div className='w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/50'>
+                    <div className='w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/50'>
                       <span className='text-white text-xs font-bold'>{muscles.length}</span>
                     </div>
                   )}
                   <p className={`capitalize font-medium transition-colors ${
-                    muscles.length > 0 ? 'text-blue-200' : 'text-slate-300 group-hover:text-blue-200'
+                    muscles.length > 0 ? 'text-emerald-700' : 'text-gray-600 group-hover:text-emerald-700'
                   }`}>
                     {muscles.length === 0 ? 'Select muscle groups' : muscles.join(' & ')}
                   </p>
                 </div>
                 <i className={`fa-solid fa-chevron-down transition-all duration-300 ${
-                  showModal ? 'rotate-180 text-blue-400' : 'text-slate-400 group-hover:text-blue-400'
+                  showModal ? 'rotate-180 text-emerald-500' : 'text-gray-400 group-hover:text-emerald-500'
                 }`}></i>
               </button>
               {showModal && (
-                <div className='border-t border-slate-700 bg-slate-800/30 max-h-48 overflow-y-auto animate-in slide-in-from-top-2 duration-200'>
+                <div className='border-t border-gray-200 bg-gray-50 max-h-48 overflow-y-auto animate-in slide-in-from-top-2 duration-200'>
                   {(poison === 'individual' 
                     ? WORKOUTS[poison] 
                     : Object.keys(WORKOUTS[poison as keyof typeof WORKOUTS])
@@ -123,17 +123,17 @@ const Generator = ({
                     <button 
                       key={muscleGroupIndex}
                       onClick={() => updateMuscles(muscleGroup)} 
-                      className={`group relative w-full px-4 py-3 text-left transition-all duration-200 border-b border-slate-700/50 last:border-b-0 active:bg-slate-600/50 hover:bg-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 ${
-                        muscles.includes(muscleGroup) ? 'text-blue-400 bg-blue-500/10 shadow-md shadow-blue-500/20' : 'text-slate-300'
+                      className={`group relative w-full px-4 py-3 text-left transition-all duration-200 border-b border-gray-200 last:border-b-0 active:bg-emerald-200 hover:bg-emerald-100 hover:shadow-lg hover:shadow-emerald-500/20 ${
+                        muscles.includes(muscleGroup) ? 'text-emerald-700 bg-emerald-100 shadow-md shadow-emerald-500/20' : 'text-gray-700'
                       }`}
                     >
                       <p className={`capitalize font-medium transition-colors ${
-                        muscles.includes(muscleGroup) ? '' : 'group-hover:text-blue-300'
+                        muscles.includes(muscleGroup) ? '' : 'group-hover:text-emerald-700'
                       }`}>
                         {muscleGroup.replaceAll('_', ' ')}
                       </p>
                       {/* Subtle glow effect on hover */}
-                      <div className='absolute inset-0 bg-gradient-to-r from-blue-400/0 via-blue-400/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
+                      <div className='absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/10 to-emerald-400/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
                     </button>
                   ))}
                 </div>
@@ -143,7 +143,7 @@ const Generator = ({
               <div className='mt-3 text-center'>
                 <button 
                   onClick={() => setMuscles([])}
-                  className='text-sm text-slate-400 hover:text-red-400 hover:glow-red transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                  className='text-sm text-gray-500 hover:text-red-500 transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]'
                 >
                   Clear selection
                 </button>
@@ -160,19 +160,19 @@ const Generator = ({
               <button 
                 key={schemeIndex}
                 onClick={() => setGoal(scheme)} 
-                className={`group relative bg-slate-900/50 backdrop-blur-sm border-2 duration-300 px-6 py-5 rounded-xl transition-all hover:scale-105 active:scale-95 hover:shadow-2xl hover:shadow-blue-500/40 hover:border-blue-400 hover:bg-blue-500/10 ${
+                className={`group relative bg-white border-2 duration-300 px-6 py-5 rounded-xl transition-all hover:scale-105 active:scale-95 hover:shadow-2xl hover:shadow-emerald-500/40 hover:border-emerald-400 hover:bg-emerald-50 ${
                   scheme === goal 
-                    ? 'border-blue-500 bg-blue-500/20 shadow-lg shadow-blue-500/30' 
-                    : 'border-slate-700'
+                    ? 'border-emerald-500 bg-emerald-50 shadow-lg shadow-emerald-500/30' 
+                    : 'border-gray-300'
                 }`}
               >
                 <p className={`capitalize font-medium transition-colors ${
-                  scheme === goal ? 'text-blue-200' : 'text-slate-300 group-hover:text-blue-200'
+                  scheme === goal ? 'text-emerald-700' : 'text-gray-700 group-hover:text-emerald-700'
                 }`}>
                   {scheme.replaceAll('_', " ")}
                 </p>
                 {/* Glow effect overlay */}
-                <div className='absolute inset-0 bg-gradient-to-r from-blue-400/0 via-blue-400/20 to-blue-400/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
+                <div className='absolute inset-0 bg-gradient-to-r from-emerald-400/0 via-emerald-400/20 to-emerald-400/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
               </button>
             ))}
           </div>
@@ -183,7 +183,7 @@ const Generator = ({
           <div className='relative'>
             <Button func={updateWorkout} text={"Generate Workout"} />
             {muscles.length === 0 && (
-              <div className='absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-sm text-red-400'>
+              <div className='absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-sm text-red-500'>
                 Please select muscle groups first
               </div>
             )}
