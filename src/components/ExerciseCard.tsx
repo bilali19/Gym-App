@@ -1,23 +1,67 @@
 import React, { useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
 import type { ExerciseCardProps } from '@/types'
 
 const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
-  const [setsCompleted, setSetsComplete] = useState<number>(0)
+  const { user } = useAuth()
+  const { currentSession, updateExerciseSet, addExerciseNote } = useWorkoutTracking()
+  
   const [showVideo, setShowVideo] = useState<boolean>(false)
+  const [showNotes, setShowNotes] = useState<boolean>(false)
+  const [localNote, setLocalNote] = useState<string>(
+    currentSession?.exercises[i]?.notes || ''
+  )
+  
+  // For guest users or non-tracked exercises, use local state
+  const [guestSetsCompleted, setGuestSetsCompleted] = useState<number>(0)
 
-  const handleSetIncrement = (): void => {
-    setSetsComplete((setsCompleted + 1) % 6)
+  const handleSetToggle = (setIndex: number) => {
+    if (currentSession && user) {
+      // For logged-in users with active session
+      const currentSet = currentSession.exercises[i].sets[setIndex]
+      updateExerciseSet(i, setIndex, {
+        completed: !currentSet.completed,
+        reps: currentSet.reps || parseInt(exercise.reps?.toString() || '0'),
+        weight: currentSet.weight || 0
+      })
+    } else {
+      // For guest users
+      const newCount = (guestSetsCompleted + 1) % 6
+      setGuestSetsCompleted(newCount)
+    }
+  }
+
+  const handleSetDataUpdate = (setIndex: number, field: 'reps' | 'weight', value: number) => {
+    if (currentSession && user) {
+      updateExerciseSet(i, setIndex, {
+        [field]: value
+      })
+    }
+  }
+
+  const handleSaveNote = () => {
+    if (currentSession && user) {
+      addExerciseNote(i, localNote)
+    }
+    setShowNotes(false)
   }
 
   const toggleVideo = (): void => {
     setShowVideo(!showVideo)
   }
 
+  const exerciseData = currentSession?.exercises[i] || exercise
+  const sets = currentSession?.exercises[i]?.sets || []
+  const completedSets = sets.filter(set => set.completed).length
+  const displayCompletedSets = currentSession ? completedSets : guestSetsCompleted
+
   return (
-    <div className='p-6 rounded-xl flex flex-col gap-4 bg-white shadow-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300 sm:flex-wrap'>
+    <div className='p-6 rounded-xl flex flex-col gap-4 bg-white shadow-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300'>
+      {/* Header */}
       <div className='flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-x-4'>
         <h4 className='text-3xl hidden sm:inline sm:text-4xl md:text-5xl font-semibold text-gray-400'>
-          0{i + 1}
+          {String(i + 1).padStart(2, '0')}
         </h4>
         <h2 className='capitalize whitespace-nowrap truncate max-w-full text-lg sm:text-xl md:text-2xl flex-1 sm:text-center text-gray-900 font-semibold'>
           {exercise.name.replaceAll("_", " ")}
@@ -35,6 +79,15 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
               {showVideo ? 'Hide' : 'Watch'}
             </button>
           )}
+          {user && currentSession && (
+            <button
+              onClick={() => setShowNotes(!showNotes)}
+              className='flex items-center gap-1 text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md transition-colors duration-200 font-medium'
+            >
+              <i className='fas fa-sticky-note'></i>
+              Notes
+            </button>
+          )}
         </div>
       </div>
       
@@ -46,7 +99,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
               <i className='fa-solid fa-play text-red-500'></i>
               {exercise.videoTitle || 'Exercise Demonstration'}
             </h3>
-            <div className='relative w-full' style={{ paddingBottom: '56.25%' /* 16:9 aspect ratio */ }}>
+            <div className='relative w-full' style={{ paddingBottom: '56.25%' }}>
               <iframe
                 className='absolute top-0 left-0 w-full h-full rounded-lg shadow-md'
                 src={`https://www.youtube.com/embed/${exercise.videoId}?rel=0&modestbranding=1`}
@@ -62,12 +115,44 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
           </div>
         </div>
       )}
+
+      {/* Notes Section */}
+      {showNotes && (
+        <div className='w-full bg-blue-50 border border-blue-200 rounded-lg p-4'>
+          <label className='block text-sm font-medium text-blue-900 mb-2'>
+            Exercise Notes
+          </label>
+          <textarea
+            value={localNote}
+            onChange={(e) => setLocalNote(e.target.value)}
+            placeholder="Add notes about form, weight used, or how the exercise felt..."
+            className='w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm'
+            rows={3}
+          />
+          <div className='flex gap-2 mt-3'>
+            <button
+              onClick={handleSaveNote}
+              className='bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors'
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setShowNotes(false)}
+              className='bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors'
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       
+      {/* Muscle Groups */}
       <div className='flex flex-col'>
         <h3 className='text-gray-600 text-sm font-medium'>Muscle Groups</h3>
         <p className='capitalize text-gray-800 font-medium'>{exercise.muscles.join(' & ')}</p>
       </div>
 
+      {/* Description */}
       <div className='flex flex-col bg-gray-50 rounded-lg p-4 gap-2 border border-gray-200'>
         {exercise.description.split('___').map((val: string, index: number) => (
           <div key={index} className='text-sm text-gray-700 leading-relaxed'>
@@ -76,6 +161,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
         ))}
       </div>
 
+      {/* Exercise Info Grid */}
       <div className='grid grid-cols-2 sm:grid-cols-4 sm:place-items-center gap-2'>
         {(['reps', 'rest', 'tempo'] as const).map((info) => (
           <div key={info} className='flex flex-col p-3 rounded-lg border border-gray-200 bg-white w-full hover:shadow-md transition-shadow duration-200'>
@@ -85,14 +171,92 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
             <p className='font-semibold text-gray-900'>{exercise[info]}</p>
           </div>
         ))}
-        <button 
-          onClick={handleSetIncrement} 
-          className='flex flex-col p-3 rounded-lg border-2 duration-200 border-emerald-300 hover:border-emerald-500 w-full transition-all hover:shadow-md hover:shadow-emerald-500/20 bg-emerald-50 hover:bg-emerald-100'
-        >
+        
+        {/* Sets Tracker */}
+        <div className='flex flex-col p-3 rounded-lg border-2 border-emerald-300 hover:border-emerald-500 w-full transition-all hover:shadow-md hover:shadow-emerald-500/20 bg-emerald-50 hover:bg-emerald-100'>
           <h3 className='text-emerald-700 text-sm capitalize font-medium'>Sets completed</h3>
-          <p className='font-semibold text-emerald-800'>{setsCompleted} / 5</p>
-        </button>
+          <p className='font-semibold text-emerald-800'>{displayCompletedSets} / 5</p>
+        </div>
       </div>
+
+      {/* Individual Set Tracking for Logged-in Users */}
+      {currentSession && user && (
+        <div className='mt-4'>
+          <h4 className='text-gray-700 font-medium mb-3'>Track Your Sets</h4>
+          <div className='grid grid-cols-1 gap-3'>
+            {sets.map((set, setIndex) => (
+              <div key={setIndex} className={`border-2 rounded-lg p-3 transition-all ${
+                set.completed 
+                  ? 'border-emerald-500 bg-emerald-50' 
+                  : 'border-gray-300 bg-white hover:border-emerald-300'
+              }`}>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-3'>
+                    <button
+                      onClick={() => handleSetToggle(setIndex)}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                        set.completed
+                          ? 'bg-emerald-600 text-white'
+                          : 'border-2 border-gray-300 hover:border-emerald-500'
+                      }`}
+                    >
+                      {set.completed && <i className='fas fa-check text-sm'></i>}
+                    </button>
+                    <span className='font-medium text-gray-900'>Set {setIndex + 1}</span>
+                  </div>
+                  
+                  <div className='flex items-center gap-2'>
+                    {exercise.unit === 'reps' && (
+                      <>
+                        <input
+                          type="number"
+                          placeholder="Reps"
+                          value={set.reps || ''}
+                          onChange={(e) => handleSetDataUpdate(setIndex, 'reps', parseInt(e.target.value) || 0)}
+                          className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
+                        />
+                        <input
+                          type="number"
+                          placeholder="Weight"
+                          value={set.weight || ''}
+                          onChange={(e) => handleSetDataUpdate(setIndex, 'weight', parseInt(e.target.value) || 0)}
+                          className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
+                        />
+                        <span className='text-xs text-gray-500'>lbs</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {set.completed && set.completedAt && (
+                  <div className='mt-2 text-xs text-emerald-600'>
+                    ✓ Completed at {new Date(set.completedAt).toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Simple Set Counter for Guest Users */}
+      {!currentSession && (
+        <button 
+          onClick={() => handleSetToggle(0)}
+          className='mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200'
+        >
+          <i className='fas fa-plus mr-2'></i>
+          Mark Set Complete ({displayCompletedSets}/5)
+        </button>
+      )}
+
+      {/* Saved Notes Display */}
+      {currentSession?.exercises[i]?.notes && (
+        <div className='mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3'>
+          <div className='text-sm font-medium text-blue-900 mb-1'>Your Notes:</div>
+          <div className='text-sm text-blue-800'>{currentSession.exercises[i].notes}</div>
+        </div>
+        )}
     </div>
   )
 }

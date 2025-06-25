@@ -18,7 +18,6 @@ export interface Exercise {
   videoTitle?: string // Descriptive title for the video
 }
 
-// Add this new interface for raw exercises from soldier.ts
 export interface RawExercise extends Omit<Exercise, 'name'> {
   variants?: Record<string, string>
 }
@@ -64,4 +63,39 @@ export interface SectionWrapperProps {
 
 export interface WorkoutProps {
   workout: Exercise[]
+}
+
+interface User {
+  id: string
+  email: string
+  name: string
+  createdAt: string
+}
+
+interface CompletedSet {
+  setNumber: number
+  reps: number
+  weight?: number
+  completed: boolean
+  completedAt?: string
+}
+
+interface TrackedExercise extends Exercise {
+  sets: CompletedSet[]
+  notes?: string
+}
+
+interface WorkoutSession {
+  id: string
+  userId: string
+  date: string
+  startTime: string
+  endTime?: string
+  exercises: TrackedExercise[]
+  totalSets: number
+  completedSets: number
+  notes?: string
+  workoutType: string
+  targetMuscles: string[]
+  goal: string
 }
