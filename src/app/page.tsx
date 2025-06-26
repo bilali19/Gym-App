@@ -105,7 +105,7 @@ const HomePage = () => {
                   <i className="fas fa-dumbbell text-emerald-600 text-xl"></i>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Personalized Workouts</h3>
-                <p className="text-gray-600">AI-generated routines tailored to your goals and preferences</p>
+                <p className="text-gray-600">Workouts tailored to your goals and preferences</p>
               </div>
               
               <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-200">
