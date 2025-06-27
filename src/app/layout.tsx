@@ -1,9 +1,12 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { AuthProvider } from '@/contexts/AuthContext'
+import { WorkoutTrackingProvider } from '@/contexts/WorkoutTrackingContext'
+import Navbar from '@/components/Navbar'
 
 export const metadata: Metadata = {
   title: 'FitForce - Workout Generator',
-  description: 'Generate your perfect workout routine',
+  description: 'Generate your perfect workout routine and track your progress',
 }
 
 const RootLayout = ({ children }: { children: React.ReactNode }) => {
@@ -25,7 +28,14 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
         />
       </head>
       <body className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-green-50 text-gray-900">
-        {children}
+        <AuthProvider>
+          <WorkoutTrackingProvider>
+            <Navbar />
+            <main className="pt-16">
+              {children}
+            </main>
+          </WorkoutTrackingProvider>
+        </AuthProvider>
       </body>
     </html>
   )
