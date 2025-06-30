@@ -154,11 +154,10 @@ export const generateWorkout = (args: WorkoutArgs): Exercise[] => {
     includedTracker.push(randomExercise)
 
     return {
-      name: randomExercise,
+      ...exercises[randomExercise], // Spread first to get the name and other properties
       tempo,
       rest: SCHEMES[scheme]["rest"][setType === "compound" ? 0 : 1],
       reps: repsOrDuration,
-      ...exercises[randomExercise],
     }
   })
 
