@@ -1,0 +1,11 @@
+{
+    "functions": {
+      "src/app/api/**/*.ts": {
+        "maxDuration": 15
+      }
+    },
+    "regions": ["iad1"],
+    "framework": "nextjs",
+    "buildCommand": "npm run build",
+    "outputDirectory": ".next"
+  }

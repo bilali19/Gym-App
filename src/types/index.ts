@@ -65,27 +65,31 @@ export interface WorkoutProps {
   workout: Exercise[]
 }
 
-interface User {
+// Database-specific types
+export interface User {
   id: string
   email: string
   name: string
   createdAt: string
 }
 
-interface CompletedSet {
+export interface CompletedSet {
+  id: string
   setNumber: number
-  reps: number
+  targetReps?: number
+  actualReps?: number
   weight?: number
   completed: boolean
   completedAt?: string
 }
 
-interface TrackedExercise extends Exercise {
+export interface TrackedExercise extends Exercise {
+  id: string
   sets: CompletedSet[]
   notes?: string
 }
 
-interface WorkoutSession {
+export interface WorkoutSession {
   id: string
   userId: string
   date: string

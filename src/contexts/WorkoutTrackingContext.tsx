@@ -5,14 +5,17 @@ import { useAuth } from './AuthContext'
 import type { Exercise } from '@/types'
 
 interface CompletedSet {
+  id: string
   setNumber: number
-  reps: number
+  targetReps?: number
+  actualReps?: number
   weight?: number
   completed: boolean
   completedAt?: string
 }
 
 interface TrackedExercise extends Exercise {
+  id: string
   sets: CompletedSet[]
   notes?: string
 }
@@ -36,17 +39,18 @@ interface WorkoutTrackingContextType {
   currentSession: WorkoutSession | null
   workoutHistory: WorkoutSession[]
   isLoading: boolean
-  startWorkoutSession: (workout: Exercise[], workoutType: string, targetMuscles: string[], goal: string) => void
-  updateExerciseSet: (exerciseIndex: number, setIndex: number, data: Partial<CompletedSet>) => void
-  addExerciseNote: (exerciseIndex: number, note: string) => void
-  completeWorkout: (notes?: string) => void
-  cancelWorkout: () => void
+  startWorkoutSession: (workout: Exercise[], workoutType: string, targetMuscles: string[], goal: string) => Promise<void>
+  updateExerciseSet: (exerciseId: string, setId: string, data: Partial<CompletedSet>) => Promise<void>
+  addExerciseNote: (exerciseId: string, note: string) => Promise<void>
+  completeWorkout: (notes?: string) => Promise<void>
+  cancelWorkout: () => Promise<void>
   getWorkoutStats: () => {
     totalWorkouts: number
     totalSets: number
     averageWorkoutTime: number
     mostTargetedMuscle: string
   }
+  refreshWorkoutHistory: () => Promise<void>
 }
 
 const WorkoutTrackingContext = createContext<WorkoutTrackingContextType | undefined>(undefined)
@@ -75,108 +79,187 @@ export const WorkoutTrackingProvider = ({ children }: { children: React.ReactNod
     }
   }, [user])
 
-  const loadWorkoutHistory = () => {
+  const loadWorkoutHistory = async () => {
     if (!user) return
 
     try {
-      const storedHistory = localStorage.getItem(`fitforce_workouts_${user.id}`)
-      if (storedHistory) {
-        setWorkoutHistory(JSON.parse(storedHistory))
+      const response = await fetch('/api/workouts', {
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setWorkoutHistory(data.sessions)
       }
     } catch (error) {
       console.error('Error loading workout history:', error)
     }
   }
 
-  const saveWorkoutHistory = (history: WorkoutSession[]) => {
+  const startWorkoutSession = async (
+    workout: Exercise[], 
+    workoutType: string, 
+    targetMuscles: string[], 
+    goal: string
+  ) => {
     if (!user) return
+
+    setIsLoading(true)
 
     try {
-      localStorage.setItem(`fitforce_workouts_${user.id}`, JSON.stringify(history))
-      setWorkoutHistory(history)
+      const response = await fetch('/api/workouts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          workoutType,
+          targetMuscles,
+          goal,
+          exercises: workout
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Get the full session data with exercises
+        const sessionResponse = await fetch(`/api/workouts/${data.session.id}`, {
+          credentials: 'include'
+        })
+        
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json()
+          setCurrentSession(sessionData.session)
+        }
+      }
     } catch (error) {
-      console.error('Error saving workout history:', error)
+      console.error('Error starting workout session:', error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const startWorkoutSession = (workout: Exercise[], workoutType: string, targetMuscles: string[], goal: string) => {
-    if (!user) return
-
-    const session: WorkoutSession = {
-      id: Date.now().toString(),
-      userId: user.id,
-      date: new Date().toISOString().split('T')[0],
-      startTime: new Date().toISOString(),
-      exercises: workout.map(exercise => ({
-        ...exercise,
-        sets: Array.from({ length: 5 }, (_, index) => ({
-          setNumber: index + 1,
-          reps: 0,
-          weight: 0,
-          completed: false
-        }))
-      })),
-      totalSets: workout.length * 5,
-      completedSets: 0,
-      workoutType,
-      targetMuscles,
-      goal
-    }
-
-    setCurrentSession(session)
-  }
-
-  const updateExerciseSet = (exerciseIndex: number, setIndex: number, data: Partial<CompletedSet>) => {
+  const updateExerciseSet = async (
+    exerciseId: string, 
+    setId: string, 
+    data: Partial<CompletedSet>
+  ) => {
     if (!currentSession) return
 
-    const updatedSession = { ...currentSession }
-    const exercise = updatedSession.exercises[exerciseIndex]
-    const set = exercise.sets[setIndex]
+    try {
+      const response = await fetch(`/api/workouts/${currentSession.id}/sets/${setId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      })
 
-    // Update the set
-    exercise.sets[setIndex] = { ...set, ...data }
-    
-    // If marking as completed, add timestamp
-    if (data.completed && !set.completed) {
-      exercise.sets[setIndex].completedAt = new Date().toISOString()
+      if (response.ok) {
+        // Update local state
+        const updatedSession = { ...currentSession }
+        const exercise = updatedSession.exercises.find(ex => ex.id === exerciseId)
+        
+        if (exercise) {
+          const set = exercise.sets.find(s => s.id === setId)
+          if (set) {
+            Object.assign(set, data)
+            
+            if (data.completed && !set.completedAt) {
+              set.completedAt = new Date().toISOString()
+            }
+          }
+        }
+
+        // Recalculate completed sets
+        updatedSession.completedSets = updatedSession.exercises.reduce(
+          (total, ex) => total + ex.sets.filter(s => s.completed).length,
+          0
+        )
+
+        setCurrentSession(updatedSession)
+      }
+    } catch (error) {
+      console.error('Error updating exercise set:', error)
     }
-
-    // Recalculate completed sets
-    updatedSession.completedSets = updatedSession.exercises.reduce(
-      (total, ex) => total + ex.sets.filter(s => s.completed).length,
-      0
-    )
-
-    setCurrentSession(updatedSession)
   }
 
-  const addExerciseNote = (exerciseIndex: number, note: string) => {
+  const addExerciseNote = async (exerciseId: string, note: string) => {
     if (!currentSession) return
 
-    const updatedSession = { ...currentSession }
-    updatedSession.exercises[exerciseIndex].notes = note
-    setCurrentSession(updatedSession)
+    try {
+      const response = await fetch(`/api/workouts/${currentSession.id}/exercises/${exerciseId}/notes`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ notes: note }),
+      })
+
+      if (response.ok) {
+        // Update local state
+        const updatedSession = { ...currentSession }
+        const exercise = updatedSession.exercises.find(ex => ex.id === exerciseId)
+        if (exercise) {
+          exercise.notes = note
+        }
+        setCurrentSession(updatedSession)
+      }
+    } catch (error) {
+      console.error('Error adding exercise note:', error)
+    }
   }
 
-  const completeWorkout = (notes?: string) => {
+  const completeWorkout = async (notes?: string) => {
     if (!currentSession || !user) return
 
     setIsLoading(true)
 
-    const completedSession: WorkoutSession = {
-      ...currentSession,
-      endTime: new Date().toISOString(),
-      notes
-    }
+    try {
+      const response = await fetch(`/api/workouts/${currentSession.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          complete: true,
+          notes
+        }),
+      })
 
-    const updatedHistory = [completedSession, ...workoutHistory]
-    saveWorkoutHistory(updatedHistory)
-    setCurrentSession(null)
-    setIsLoading(false)
+      if (response.ok) {
+        await loadWorkoutHistory()
+        setCurrentSession(null)
+      }
+    } catch (error) {
+      console.error('Error completing workout:', error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const cancelWorkout = () => {
-    setCurrentSession(null)
+  const cancelWorkout = async () => {
+    if (!currentSession) return
+
+    try {
+      await fetch(`/api/workouts/${currentSession.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+    } catch (error) {
+      console.error('Error canceling workout:', error)
+    } finally {
+      setCurrentSession(null)
+    }
+  }
+
+  const refreshWorkoutHistory = async () => {
+    await loadWorkoutHistory()
   }
 
   const getWorkoutStats = () => {
@@ -222,7 +305,8 @@ export const WorkoutTrackingProvider = ({ children }: { children: React.ReactNod
     addExerciseNote,
     completeWorkout,
     cancelWorkout,
-    getWorkoutStats
+    getWorkoutStats,
+    refreshWorkoutHistory
   }
 
   return (

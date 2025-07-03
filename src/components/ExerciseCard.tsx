@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
-import type { ExerciseCardProps } from '@/types'
+import type { ExerciseCardProps, TrackedExercise, CompletedSet } from '@/types'
 
 const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const { user } = useAuth()
@@ -9,22 +9,41 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   
   const [showVideo, setShowVideo] = useState<boolean>(false)
   const [showNotes, setShowNotes] = useState<boolean>(false)
-  const [localNote, setLocalNote] = useState<string>(
-    currentSession?.exercises[i]?.notes || ''
-  )
+  const [localNote, setLocalNote] = useState<string>('')
   
   // For guest users or non-tracked exercises, use local state
   const [guestSetsCompleted, setGuestSetsCompleted] = useState<number>(0)
 
-  const handleSetToggle = (setIndex: number) => {
-    if (currentSession && user) {
+  // Get the exercise data from current session or use the passed exercise
+  const exerciseData = currentSession?.exercises[i] || exercise
+  
+  // Type guard to check if this is a tracked exercise
+  const isTrackedExercise = (ex: any): ex is TrackedExercise => {
+    return ex && typeof ex === 'object' && 'id' in ex && 'sets' in ex
+  }
+  
+  const sets: CompletedSet[] = isTrackedExercise(exerciseData) ? exerciseData.sets : []
+  const completedSets = sets.filter(set => set.completed).length
+  const displayCompletedSets = currentSession ? completedSets : guestSetsCompleted
+
+  // Initialize local note with existing note
+  React.useEffect(() => {
+    if (isTrackedExercise(exerciseData) && exerciseData.notes) {
+      setLocalNote(exerciseData.notes)
+    }
+  }, [exerciseData])
+
+  const handleSetToggle = async (setId: string) => {
+    if (currentSession && user && isTrackedExercise(exerciseData)) {
       // For logged-in users with active session
-      const currentSet = currentSession.exercises[i].sets[setIndex]
-      updateExerciseSet(i, setIndex, {
-        completed: !currentSet.completed,
-        reps: currentSet.reps || parseInt(exercise.reps?.toString() || '0'),
-        weight: currentSet.weight || 0
-      })
+      const currentSet = sets.find(s => s.id === setId)
+      if (currentSet) {
+        await updateExerciseSet(exerciseData.id, setId, {
+          completed: !currentSet.completed,
+          actualReps: currentSet.actualReps || parseInt(exercise.reps?.toString() || '0'),
+          weight: currentSet.weight || 0
+        })
+      }
     } else {
       // For guest users
       const newCount = (guestSetsCompleted + 1) % 6
@@ -32,17 +51,17 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
     }
   }
 
-  const handleSetDataUpdate = (setIndex: number, field: 'reps' | 'weight', value: number) => {
-    if (currentSession && user) {
-      updateExerciseSet(i, setIndex, {
+  const handleSetDataUpdate = async (setId: string, field: 'actualReps' | 'weight', value: number) => {
+    if (currentSession && user && isTrackedExercise(exerciseData)) {
+      await updateExerciseSet(exerciseData.id, setId, {
         [field]: value
       })
     }
   }
 
-  const handleSaveNote = () => {
-    if (currentSession && user) {
-      addExerciseNote(i, localNote)
+  const handleSaveNote = async () => {
+    if (currentSession && user && isTrackedExercise(exerciseData)) {
+      await addExerciseNote(exerciseData.id, localNote)
     }
     setShowNotes(false)
   }
@@ -50,11 +69,6 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const toggleVideo = (): void => {
     setShowVideo(!showVideo)
   }
-
-  const exerciseData = currentSession?.exercises[i] || exercise
-  const sets = currentSession?.exercises[i]?.sets || []
-  const completedSets = sets.filter(set => set.completed).length
-  const displayCompletedSets = currentSession ? completedSets : guestSetsCompleted
 
   return (
     <div className='p-6 rounded-xl flex flex-col gap-4 bg-white shadow-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300'>
@@ -180,12 +194,12 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       </div>
 
       {/* Individual Set Tracking for Logged-in Users */}
-      {currentSession && user && (
+      {currentSession && user && isTrackedExercise(exerciseData) && (
         <div className='mt-4'>
           <h4 className='text-gray-700 font-medium mb-3'>Track Your Sets</h4>
           <div className='grid grid-cols-1 gap-3'>
-            {sets.map((set, setIndex) => (
-              <div key={setIndex} className={`border-2 rounded-lg p-3 transition-all ${
+            {sets.map((set) => (
+              <div key={set.id} className={`border-2 rounded-lg p-3 transition-all ${
                 set.completed 
                   ? 'border-emerald-500 bg-emerald-50' 
                   : 'border-gray-300 bg-white hover:border-emerald-300'
@@ -193,7 +207,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
                 <div className='flex items-center justify-between'>
                   <div className='flex items-center gap-3'>
                     <button
-                      onClick={() => handleSetToggle(setIndex)}
+                      onClick={() => handleSetToggle(set.id)}
                       className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                         set.completed
                           ? 'bg-emerald-600 text-white'
@@ -202,7 +216,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
                     >
                       {set.completed && <i className='fas fa-check text-sm'></i>}
                     </button>
-                    <span className='font-medium text-gray-900'>Set {setIndex + 1}</span>
+                    <span className='font-medium text-gray-900'>Set {set.setNumber}</span>
                   </div>
                   
                   <div className='flex items-center gap-2'>
@@ -211,15 +225,15 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
                         <input
                           type="number"
                           placeholder="Reps"
-                          value={set.reps || ''}
-                          onChange={(e) => handleSetDataUpdate(setIndex, 'reps', parseInt(e.target.value) || 0)}
+                          value={set.actualReps || ''}
+                          onChange={(e) => handleSetDataUpdate(set.id, 'actualReps', parseInt(e.target.value) || 0)}
                           className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
                         />
                         <input
                           type="number"
                           placeholder="Weight"
                           value={set.weight || ''}
-                          onChange={(e) => handleSetDataUpdate(setIndex, 'weight', parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleSetDataUpdate(set.id, 'weight', parseInt(e.target.value) || 0)}
                           className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
                         />
                         <span className='text-xs text-gray-500'>lbs</span>
@@ -242,7 +256,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       {/* Simple Set Counter for Guest Users */}
       {!currentSession && (
         <button 
-          onClick={() => handleSetToggle(0)}
+          onClick={() => handleSetToggle('')}
           className='mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200'
         >
           <i className='fas fa-plus mr-2'></i>
@@ -251,12 +265,12 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       )}
 
       {/* Saved Notes Display */}
-      {currentSession?.exercises[i]?.notes && (
+      {isTrackedExercise(exerciseData) && exerciseData.notes && (
         <div className='mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3'>
           <div className='text-sm font-medium text-blue-900 mb-1'>Your Notes:</div>
-          <div className='text-sm text-blue-800'>{currentSession.exercises[i].notes}</div>
+          <div className='text-sm text-blue-800'>{exerciseData.notes}</div>
         </div>
-        )}
+      )}
     </div>
   )
 }

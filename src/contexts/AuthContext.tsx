@@ -33,49 +33,53 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Simulate API calls with localStorage (in a real app, you'd use a backend)
+  // Check authentication status on mount
   useEffect(() => {
-    const checkAuth = () => {
-      try {
-        const storedUser = localStorage.getItem('fitforce_user')
-        if (storedUser) {
-          setUser(JSON.parse(storedUser))
-        }
-      } catch (error) {
-        console.error('Error parsing stored user:', error)
-        localStorage.removeItem('fitforce_user')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     checkAuth()
   }, [])
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      })
 
-      // Get stored users
-      const storedUsers = JSON.parse(localStorage.getItem('fitforce_users') || '[]')
-      const foundUser = storedUsers.find((u: any) => u.email === email && u.password === password)
+      const data = await response.json()
 
-      if (foundUser) {
-        const userWithoutPassword = { ...foundUser }
-        delete userWithoutPassword.password
-        setUser(userWithoutPassword)
-        localStorage.setItem('fitforce_user', JSON.stringify(userWithoutPassword))
+      if (response.ok) {
+        setUser(data.user)
         return true
       } else {
-        setError('Invalid email or password')
+        setError(data.error || 'Login failed')
         return false
       }
     } catch (error) {
-      setError('Login failed. Please try again.')
+      setError('Network error. Please try again.')
       return false
     } finally {
       setIsLoading(false)
@@ -87,48 +91,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setError(null)
 
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ name, email, password }),
+      })
 
-      // Get stored users
-      const storedUsers = JSON.parse(localStorage.getItem('fitforce_users') || '[]')
-      
-      // Check if user already exists
-      if (storedUsers.find((u: any) => u.email === email)) {
-        setError('User with this email already exists')
+      const data = await response.json()
+
+      if (response.ok) {
+        setUser(data.user)
+        return true
+      } else {
+        setError(data.error || 'Signup failed')
         return false
       }
-
-      // Create new user
-      const newUser = {
-        id: Date.now().toString(),
-        name,
-        email,
-        password, // In a real app, this would be hashed
-        createdAt: new Date().toISOString()
-      }
-
-      // Store new user
-      storedUsers.push(newUser)
-      localStorage.setItem('fitforce_users', JSON.stringify(storedUsers))
-
-      // Set current user (without password)
-      const { password: _, ...userWithoutPassword } = newUser
-      setUser(userWithoutPassword)
-      localStorage.setItem('fitforce_user', JSON.stringify(userWithoutPassword))
-      
-      return true
     } catch (error) {
-      setError('Signup failed. Please try again.')
+      setError('Network error. Please try again.')
       return false
     } finally {
       setIsLoading(false)
     }
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem('fitforce_user')
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      setUser(null)
+    }
   }
 
   const value = {
