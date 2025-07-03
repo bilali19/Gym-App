@@ -45,6 +45,7 @@
 
 // Updated src/app/api/auth/me/route.ts with proper error handling
 
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { userModel } from '@/lib/models'
 import jwt from 'jsonwebtoken'
