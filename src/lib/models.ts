@@ -51,6 +51,19 @@ export interface ExerciseSet {
   completed_at?: string
 }
 
+// Helper function to ensure arrays are properly handled
+const ensureArray = (value: any): string[] => {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    // Handle PostgreSQL array string format like "{chest,triceps}"
+    if (value.startsWith('{') && value.endsWith('}')) {
+      return value.slice(1, -1).split(',').filter(Boolean)
+    }
+    return [value]
+  }
+  return []
+}
+
 // User methods
 export const userModel = {
   async create(name: string, email: string, password: string): Promise<User> {
@@ -163,7 +176,12 @@ export const workoutSessionModel = {
       }
 
       await client.query('COMMIT')
-      return session
+      
+      // Transform the session data to ensure arrays are properly formatted
+      return {
+        ...session,
+        target_muscles: ensureArray(session.target_muscles)
+      }
 
     } catch (error) {
       await client.query('ROLLBACK')
@@ -175,13 +193,80 @@ export const workoutSessionModel = {
 
   async findByUserId(userId: string): Promise<WorkoutSession[]> {
     const query = `
-      SELECT * FROM workout_sessions 
-      WHERE user_id = $1 
-      ORDER BY start_time DESC
+      SELECT 
+        ws.*,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', we.id,
+              'name', we.exercise_name,
+              'type', we.exercise_type,
+              'muscles', we.muscles,
+              'description', we.description,
+              'unit', we.unit,
+              'target_reps', we.target_reps,
+              'target_rest', we.target_rest,
+              'tempo', we.tempo,
+              'notes', we.notes,
+              'order_index', we.order_index,
+              'sets', COALESCE(
+                (
+                  SELECT json_agg(
+                    json_build_object(
+                      'id', es.id,
+                      'setNumber', es.set_number,
+                      'targetReps', es.target_reps,
+                      'actualReps', es.actual_reps,
+                      'weight', es.weight,
+                      'completed', es.completed,
+                      'completedAt', es.completed_at
+                    ) ORDER BY es.set_number
+                  )
+                  FROM exercise_sets es 
+                  WHERE es.workout_exercise_id = we.id
+                ), '[]'::json
+              )
+            ) ORDER BY we.order_index
+          ) FILTER (WHERE we.id IS NOT NULL), 
+          '[]'::json
+        ) as exercises
+      FROM workout_sessions ws
+      LEFT JOIN workout_exercises we ON ws.id = we.workout_session_id
+      WHERE ws.user_id = $1 
+      GROUP BY ws.id
+      ORDER BY ws.start_time DESC
     `
     
     const result = await pool.query(query, [userId])
-    return result.rows
+    
+    return result.rows.map(row => ({
+      id: row.id,
+      user_id: row.user_id,
+      date: row.date,
+      start_time: row.start_time,
+      end_time: row.end_time,
+      workout_type: row.workout_type,
+      target_muscles: ensureArray(row.target_muscles),
+      goal: row.goal,
+      total_sets: row.total_sets,
+      completed_sets: row.completed_sets,
+      notes: row.notes,
+      exercises: Array.isArray(row.exercises) ? row.exercises.map((ex: any) => ({
+        id: ex.id,
+        workout_session_id: row.id,
+        exercise_name: ex.name,
+        exercise_type: ex.type,
+        muscles: ensureArray(ex.muscles),
+        description: ex.description,
+        unit: ex.unit,
+        target_reps: ex.target_reps,
+        target_rest: ex.target_rest,
+        tempo: ex.tempo,
+        notes: ex.notes,
+        order_index: ex.order_index,
+        sets: Array.isArray(ex.sets) ? ex.sets : []
+      })) : []
+    }))
   },
 
   async findByIdWithExercises(sessionId: string): Promise<WorkoutSession | null> {
@@ -199,12 +284,12 @@ export const workoutSessionModel = {
                json_agg(
                  json_build_object(
                    'id', es.id,
-                   'set_number', es.set_number,
-                   'target_reps', es.target_reps,
-                   'actual_reps', es.actual_reps,
+                   'setNumber', es.set_number,
+                   'targetReps', es.target_reps,
+                   'actualReps', es.actual_reps,
                    'weight', es.weight,
                    'completed', es.completed,
-                   'completed_at', es.completed_at
+                   'completedAt', es.completed_at
                  ) ORDER BY es.set_number
                ) FILTER (WHERE es.id IS NOT NULL), 
                '[]'
@@ -219,8 +304,32 @@ export const workoutSessionModel = {
     const exercisesResult = await pool.query(exercisesQuery, [sessionId])
     
     return {
-      ...session,
-      exercises: exercisesResult.rows
+      id: session.id,
+      user_id: session.user_id,
+      date: session.date,
+      start_time: session.start_time,
+      end_time: session.end_time,
+      workout_type: session.workout_type,
+      target_muscles: ensureArray(session.target_muscles),
+      goal: session.goal,
+      total_sets: session.total_sets,
+      completed_sets: session.completed_sets,
+      notes: session.notes,
+      exercises: exercisesResult.rows.map(row => ({
+        id: row.id,
+        workout_session_id: sessionId,
+        exercise_name: row.exercise_name,
+        exercise_type: row.exercise_type,
+        muscles: ensureArray(row.muscles),
+        description: row.description,
+        unit: row.unit,
+        target_reps: row.target_reps,
+        target_rest: row.target_rest,
+        tempo: row.tempo,
+        notes: row.notes,
+        order_index: row.order_index,
+        sets: Array.isArray(row.sets) ? row.sets : []
+      }))
     }
   },
 
@@ -330,7 +439,17 @@ export const statsModel = {
             ELSE NULL 
           END
         ), 0) as average_workout_time,
-        MODE() WITHIN GROUP (ORDER BY unnest(target_muscles)) as most_targeted_muscle
+        (
+          SELECT unnest_val
+          FROM (
+            SELECT unnest(target_muscles) as unnest_val
+            FROM workout_sessions 
+            WHERE user_id = $1 AND end_time IS NOT NULL
+          ) subq
+          GROUP BY unnest_val
+          ORDER BY COUNT(*) DESC
+          LIMIT 1
+        ) as most_targeted_muscle
       FROM workout_sessions 
       WHERE user_id = $1 AND end_time IS NOT NULL
     `
