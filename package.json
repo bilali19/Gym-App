@@ -11,6 +11,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+<<<<<<< HEAD
+=======
+    "@nivo/bar": "^0.99.0",
+    "@nivo/core": "^0.99.0",
+>>>>>>> 96ea72b (Add comprehensive progress tracking with interactive charts + remove videos)
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.0.1",
     "jsonwebtoken": "^9.0.2",
