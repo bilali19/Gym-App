@@ -34,6 +34,7 @@ const Generator = ({
   updateWorkout 
 }: GeneratorProps) => {
   const [showModal, setShowModal] = useState<boolean>(false)
+  const [hasAttemptedGenerate, setHasAttemptedGenerate] = useState<boolean>(false)
 
   const toggleModal = (): void => {
     setShowModal(!showModal)
@@ -61,6 +62,13 @@ const Generator = ({
     }
   }
 
+  const handleGenerateWorkout = (): void => {
+    setHasAttemptedGenerate(true)
+    if (muscles.length > 0) {
+      updateWorkout()
+    }
+  }
+
   return (
     <SectionWrapper id={'generate'} header={"build your workout"} title={['Time to', 'TRAIN', 'smart']}>
       <div className='space-y-16'>
@@ -74,6 +82,8 @@ const Generator = ({
                 onClick={() => {
                   setMuscles([])
                   setPoison(type)
+                  // Reset the attempt flag when changing workout type
+                  setHasAttemptedGenerate(false)
                 }} 
                 className={`relative border-2 duration-200 px-6 py-4 rounded-xl transition-all cursor-pointer ${
                   type === poison 
@@ -142,7 +152,11 @@ const Generator = ({
             {muscles.length > 0 && (
               <div className='mt-3 text-center'>
                 <button 
-                  onClick={() => setMuscles([])}
+                  onClick={() => {
+                    setMuscles([])
+                    // Reset the attempt flag when clearing selection
+                    setHasAttemptedGenerate(false)
+                  }}
                   className='text-sm text-gray-500 hover:text-red-500 transition-all duration-300 hover:drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]'
                 >
                   Clear selection
@@ -181,9 +195,9 @@ const Generator = ({
         {/* Generate Button */}
         <div className='flex justify-center pt-8'>
           <div className='relative'>
-            <Button func={updateWorkout} text={"Generate Workout"} />
-            {muscles.length === 0 && (
-              <div className='absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-sm text-red-500'>
+            <Button func={handleGenerateWorkout} text={"Generate Workout"} />
+            {hasAttemptedGenerate && muscles.length === 0 && (
+              <div className='mt-4 text-sm text-red-500 font-medium'>
                 Please select muscle groups first
               </div>
             )}

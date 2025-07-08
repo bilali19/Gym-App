@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
+import type { WorkoutSession } from '@/types'
 
 const HistoryPage = () => {
   const router = useRouter()
@@ -13,6 +14,8 @@ const HistoryPage = () => {
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null)
+  const [showDetailsModal, setShowDetailsModal] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -50,6 +53,16 @@ const HistoryPage = () => {
     const start = new Date(startTime).getTime()
     const end = new Date(endTime).getTime()
     return formatDuration((end - start) / (1000 * 60))
+  }
+
+  const handleViewDetails = (workout: WorkoutSession) => {
+    setSelectedWorkout(workout)
+    setShowDetailsModal(true)
+  }
+
+  const closeDetailsModal = () => {
+    setSelectedWorkout(null)
+    setShowDetailsModal(false)
   }
 
   // Filter workouts based on selected filters
@@ -210,7 +223,7 @@ const HistoryPage = () => {
                       <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium capitalize">
                         {workout.goal.replace('_', ' ')}
                       </span>
-                      {workout.targetMuscles.map((muscle) => (
+                      {workout.targetMuscles.map((muscle: string) => (
                         <span
                           key={muscle}
                           className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium capitalize"
@@ -254,11 +267,8 @@ const HistoryPage = () => {
                       {workout.exercises.length > 3 && ` and ${workout.exercises.length - 3} more`}
                     </div>
                     <button
-                      onClick={() => {
-                        // Could expand to show full workout details
-                        console.log('Show workout details:', workout.id)
-                      }}
-                      className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+                      onClick={() => handleViewDetails(workout)}
+                      className="text-emerald-600 hover:text-emerald-700 text-sm font-medium hover:bg-emerald-50 px-3 py-1 rounded-lg transition-colors"
                     >
                       View Details
                     </button>
@@ -359,6 +369,160 @@ const HistoryPage = () => {
           </button>
         </div>
       </div>
+
+      {/* Workout Details Modal */}
+      {showDetailsModal && selectedWorkout && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-600 to-green-600 p-6 text-white">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold capitalize">
+                    {selectedWorkout.workoutType.replace('_', ' ')} Workout
+                  </h2>
+                  <p className="text-emerald-100">
+                    {formatDate(selectedWorkout.date)} • {getWorkoutDuration(selectedWorkout.startTime, selectedWorkout.endTime)}
+                  </p>
+                </div>
+                <button
+                  onClick={closeDetailsModal}
+                  className="text-white hover:text-emerald-200 text-xl bg-white bg-opacity-20 rounded-full w-8 h-8 flex items-center justify-center"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {/* Workout Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-emerald-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-emerald-600">{selectedWorkout.exercises.length}</div>
+                  <div className="text-gray-600 text-sm">Exercises</div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-blue-600">{selectedWorkout.completedSets}</div>
+                  <div className="text-gray-600 text-sm">Sets Completed</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-purple-600">{selectedWorkout.totalSets}</div>
+                  <div className="text-gray-600 text-sm">Total Sets</div>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {Math.round((selectedWorkout.completedSets / selectedWorkout.totalSets) * 100)}%
+                  </div>
+                  <div className="text-gray-600 text-sm">Completion</div>
+                </div>
+              </div>
+
+              {/* Target Muscles & Goal */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Workout Details</h3>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium capitalize">
+                    Goal: {selectedWorkout.goal.replace('_', ' ')}
+                  </span>
+                  {selectedWorkout.targetMuscles.map((muscle: string) => (
+                    <span
+                      key={muscle}
+                      className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium capitalize"
+                    >
+                      {muscle}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Exercises List */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Exercises</h3>
+                <div className="space-y-4">
+                  {selectedWorkout.exercises.map((exercise: any, index: number) => (
+                    <div key={exercise.id || index} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-gray-900 capitalize">
+                          {exercise.name.replace(/_/g, ' ')}
+                        </h4>
+                        <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm capitalize">
+                          {exercise.type}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <div className="text-sm">
+                          <span className="text-gray-600">Target:</span>
+                          <div className="font-medium">{exercise.reps} reps</div>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-gray-600">Rest:</span>
+                          <div className="font-medium">{exercise.rest}s</div>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-gray-600">Muscles:</span>
+                          <div className="font-medium capitalize">{exercise.muscles.join(', ')}</div>
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-gray-600">Sets:</span>
+                          <div className="font-medium">
+                            {exercise.sets ? exercise.sets.filter((set: { completed: any }) => set.completed).length : 0}/{exercise.sets ? exercise.sets.length : 5}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Sets Details */}
+                      {exercise.sets && exercise.sets.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-sm text-gray-600 mb-2">Sets Details:</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                            {exercise.sets.map((set: any, setIndex: number) => (
+                              <div
+                                key={set.id || setIndex}
+                                className={`text-xs p-2 rounded border ${
+                                  set.completed
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    : 'bg-gray-50 border-gray-200 text-gray-600'
+                                }`}
+                              >
+                                <div className="font-medium">Set {set.setNumber}</div>
+                                {set.completed && (
+                                  <div>
+                                    {set.actualReps && <div>{set.actualReps} reps</div>}
+                                    {set.weight && <div>{set.weight} lbs</div>}
+                                  </div>
+                                )}
+                                {!set.completed && <div>Not completed</div>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Exercise Notes */}
+                      {exercise.notes && (
+                        <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2">
+                          <div className="text-xs font-medium text-blue-900 mb-1">Notes:</div>
+                          <div className="text-xs text-blue-800">{exercise.notes}</div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Workout Notes */}
+              {selectedWorkout.notes && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-2">Workout Notes</h3>
+                  <p className="text-blue-800">{selectedWorkout.notes}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
