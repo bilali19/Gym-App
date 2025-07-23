@@ -1,8 +1,8 @@
 import { EXERCISES, SCHEMES, TEMPOS, WORKOUTS } from "./soldier"
 import type { Exercise, WorkoutArgs, RawExercise } from "@/types"
 
-// Move the exercisesFlattener function to the top
-const exercisesFlattener = (exercisesObj: Record<string, RawExercise>): Record<string, Exercise> => {
+// Export the exercisesFlattener function for use in other components
+export const exercisesFlattener = (exercisesObj: Record<string, RawExercise>): Record<string, Exercise> => {
   const flattenedObj: Record<string, Exercise> = {}
 
   for (const [key, val] of Object.entries(exercisesObj)) {

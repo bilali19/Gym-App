@@ -19,6 +19,7 @@ const Navbar = () => {
   const navigation = [
     { name: 'Home', href: '/' },
     { name: 'Generate', href: '/generate' },
+    { name: 'Custom Builder', href: '/custom-workout' }, // New link
     { name: 'Dashboard', href: '/dashboard', authRequired: true },
     { name: 'Progress', href: '/progress', authRequired: true },
     { name: 'History', href: '/history', authRequired: true },

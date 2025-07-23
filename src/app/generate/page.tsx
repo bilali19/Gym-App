@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
 import Generator from '@/components/Generator'
+import CustomWorkoutBuilder from '@/components/CustomWorkoutBuilder'
 import { generateWorkout } from '@/utils/functions'
 import type { Exercise } from '@/types'
 
@@ -17,6 +18,7 @@ const GeneratePage = () => {
   const [poison, setPoison] = useState<string>('individual')
   const [muscles, setMuscles] = useState<string[]>([])
   const [goal, setGoal] = useState<string>('strength_power')
+  const [showCustomBuilder, setShowCustomBuilder] = useState<boolean>(false)
 
   const updateWorkout = (): void => {
     if (muscles.length < 1) {
@@ -24,6 +26,7 @@ const GeneratePage = () => {
     }
     const newWorkout = generateWorkout({ poison, muscles, goal })
     setWorkout(newWorkout)
+    setShowCustomBuilder(false) // Hide custom builder when generating new workout
   }
 
   const startWorkout = () => {
@@ -35,7 +38,6 @@ const GeneratePage = () => {
       router.push('/workout')
     } else {
       // If not logged in, go to workout page without tracking
-      // Store workout data temporarily in sessionStorage
       sessionStorage.setItem('tempWorkout', JSON.stringify({
         workout,
         poison,
@@ -44,6 +46,60 @@ const GeneratePage = () => {
       }))
       router.push('/workout')
     }
+  }
+
+  const handleEditWorkout = () => {
+    setShowCustomBuilder(true)
+  }
+
+  const handleSaveEditedWorkout = (editedWorkout: Exercise[], name: string, description?: string) => {
+    setWorkout(editedWorkout)
+    setShowCustomBuilder(false)
+    // You could save as template here if needed
+    console.log('Workout edited and saved as template:', name)
+  }
+
+  const handleStartEditedWorkout = (editedWorkout: Exercise[]) => {
+    setWorkout(editedWorkout)
+    setShowCustomBuilder(false)
+    
+    if (user) {
+      startWorkoutSession(editedWorkout, poison, muscles, goal)
+      router.push('/workout')
+    } else {
+      sessionStorage.setItem('tempWorkout', JSON.stringify({
+        workout: editedWorkout,
+        poison,
+        muscles,
+        goal
+      }))
+      router.push('/workout')
+    }
+  }
+
+  // If showing custom builder for editing
+  if (showCustomBuilder && workout) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-green-50">
+        <div className="container mx-auto px-4 py-8">
+          {/* Back Button */}
+          <button
+            onClick={() => setShowCustomBuilder(false)}
+            className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors font-medium"
+          >
+            <i className="fas fa-arrow-left"></i>
+            Back to Generated Workout
+          </button>
+
+          <CustomWorkoutBuilder
+            initialWorkout={workout}
+            mode="edit"
+            onSaveWorkout={handleSaveEditedWorkout}
+            onStartWorkout={handleStartEditedWorkout}
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -131,6 +187,14 @@ const GeneratePage = () => {
                 >
                   <i className="fas fa-play mr-2"></i>
                   Start Workout
+                </button>
+                
+                <button
+                  onClick={handleEditWorkout}
+                  className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300"
+                >
+                  <i className="fas fa-edit mr-2"></i>
+                  Edit Workout
                 </button>
                 
                 <button
