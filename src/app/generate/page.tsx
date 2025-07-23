@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
 import Generator from '@/components/Generator'
 import CustomWorkoutBuilder from '@/components/CustomWorkoutBuilder'
+import ScheduleWorkoutModal from '@/components/ScheduleWorkoutModal'
 import { generateWorkout } from '@/utils/functions'
 import type { Exercise } from '@/types'
 
@@ -19,6 +20,7 @@ const GeneratePage = () => {
   const [muscles, setMuscles] = useState<string[]>([])
   const [goal, setGoal] = useState<string>('strength_power')
   const [showCustomBuilder, setShowCustomBuilder] = useState<boolean>(false)
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false)
 
   const updateWorkout = (): void => {
     if (muscles.length < 1) {
@@ -26,18 +28,16 @@ const GeneratePage = () => {
     }
     const newWorkout = generateWorkout({ poison, muscles, goal })
     setWorkout(newWorkout)
-    setShowCustomBuilder(false) // Hide custom builder when generating new workout
+    setShowCustomBuilder(false)
   }
 
   const startWorkout = () => {
     if (!workout) return
     
     if (user) {
-      // If user is logged in, start tracking session
       startWorkoutSession(workout, poison, muscles, goal)
       router.push('/workout')
     } else {
-      // If not logged in, go to workout page without tracking
       sessionStorage.setItem('tempWorkout', JSON.stringify({
         workout,
         poison,
@@ -52,10 +52,28 @@ const GeneratePage = () => {
     setShowCustomBuilder(true)
   }
 
+  const handleScheduleWorkout = () => {
+    setShowScheduleModal(true)
+  }
+
+  const handleScheduleConfirm = (scheduledWorkout: any) => {
+    // Save to localStorage (in a real app, this would go to your backend)
+    const existingSchedule = JSON.parse(localStorage.getItem('scheduledWorkouts') || '[]')
+    const newScheduledWorkout = {
+      id: Date.now().toString(),
+      ...scheduledWorkout
+    }
+    localStorage.setItem('scheduledWorkouts', JSON.stringify([...existingSchedule, newScheduledWorkout]))
+    
+    setShowScheduleModal(false)
+    
+    // Show success message or redirect to schedule page
+    router.push('/schedule')
+  }
+
   const handleSaveEditedWorkout = (editedWorkout: Exercise[], name: string, description?: string) => {
     setWorkout(editedWorkout)
     setShowCustomBuilder(false)
-    // You could save as template here if needed
     console.log('Workout edited and saved as template:', name)
   }
 
@@ -82,7 +100,6 @@ const GeneratePage = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-green-50">
         <div className="container mx-auto px-4 py-8">
-          {/* Back Button */}
           <button
             onClick={() => setShowCustomBuilder(false)}
             className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors font-medium"
@@ -180,26 +197,34 @@ const GeneratePage = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button
                   onClick={startWorkout}
-                  className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <i className="fas fa-play mr-2"></i>
-                  Start Workout
+                  Start Now
+                </button>
+                
+                <button
+                  onClick={handleScheduleWorkout}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300"
+                >
+                  <i className="fas fa-calendar-plus mr-2"></i>
+                  Schedule
                 </button>
                 
                 <button
                   onClick={handleEditWorkout}
-                  className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300"
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300"
                 >
                   <i className="fas fa-edit mr-2"></i>
-                  Edit Workout
+                  Edit
                 </button>
                 
                 <button
                   onClick={updateWorkout}
-                  className="flex-1 sm:flex-none bg-white border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300"
+                  className="bg-white border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300"
                 >
                   <i className="fas fa-refresh mr-2"></i>
                   Generate New
@@ -236,9 +261,9 @@ const GeneratePage = () => {
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i className="fas fa-brain text-emerald-600 text-2xl"></i>
               </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">Smart Algorithm</h4>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">Personalized Workouts</h4>
               <p className="text-gray-600">
-                Our AI considers your goals, experience level, and target muscles to create optimal routines
+              Workouts tailored to your goals and preferences
               </p>
             </div>
             
@@ -246,9 +271,9 @@ const GeneratePage = () => {
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i className="fas fa-clock text-blue-600 text-2xl"></i>
               </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">Time Efficient</h4>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">Progress Tracking</h4>
               <p className="text-gray-600">
-                Get maximum results with scientifically-backed rep ranges and rest periods
+              Monitor your sets, reps, and workout history over time
               </p>
             </div>
             
@@ -256,14 +281,28 @@ const GeneratePage = () => {
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i className="fas fa-users text-purple-600 text-2xl"></i>
               </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">Expert Designed</h4>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">Video Guides</h4>
               <p className="text-gray-600">
-                Based on proven training principles used by fitness professionals worldwide
+              Learn proper form with integrated exercise demonstration videos
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Schedule Modal */}
+      <ScheduleWorkoutModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onSchedule={handleScheduleConfirm}
+        workout={workout ? {
+          exercises: workout,
+          workoutType: poison,
+          targetMuscles: muscles,
+          goal: goal,
+          name: `${poison.replace('_', ' ')} Workout`
+        } : undefined}
+      />
     </div>
   )
 }

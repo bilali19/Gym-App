@@ -9,7 +9,7 @@ import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
 const DashboardPage = () => {
   const router = useRouter()
   const { user } = useAuth()
-  const { workoutHistory, getWorkoutStats, currentSession } = useWorkoutTracking()
+  const { workoutHistory, getWorkoutStats, currentSession, startWorkoutSession } = useWorkoutTracking()
 
   useEffect(() => {
     if (!user) {
@@ -100,31 +100,162 @@ const DashboardPage = () => {
           </div>
         )}
 
+        {/* Today's Scheduled Workouts */}
+        {(() => {
+          const today = new Date().toISOString().split('T')[0]
+          const scheduledWorkouts = typeof window !== 'undefined' 
+            ? JSON.parse(localStorage.getItem('scheduledWorkouts') || '[]')
+            : []
+          const todaysWorkouts = scheduledWorkouts.filter((w: any) => w.date === today && !w.completed)
+          
+          return todaysWorkouts.length > 0 && (
+            <div className="mb-8">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <i className="fas fa-calendar-day text-blue-600 text-xl"></i>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-blue-900">
+                        Today's Scheduled Workouts
+                      </h3>
+                      <p className="text-blue-700 text-sm">
+                        You have {todaysWorkouts.length} workout{todaysWorkouts.length > 1 ? 's' : ''} planned for today
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/schedule"
+                    className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+                  >
+                    View Schedule
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {todaysWorkouts.slice(0, 2).map((workout: any) => (
+                    <div key={workout.id} className="bg-white border border-blue-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{workout.name}</h4>
+                          {workout.time && (
+                            <p className="text-sm text-gray-600">
+                              {new Date(`2000-01-01 ${workout.time}`).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </p>
+                          )}
+                        </div>
+                        <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                          Scheduled
+                        </span>
+                      </div>
+                      
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => {
+                            // Handle starting scheduled workout
+                            if (workout.exercises && workout.exercises.length > 0) {
+                              if (user) {
+                                startWorkoutSession(workout.exercises, workout.workoutType, workout.targetMuscles, workout.goal)
+                                router.push('/workout')
+                              } else {
+                                sessionStorage.setItem('tempWorkout', JSON.stringify({
+                                  workout: workout.exercises,
+                                  poison: workout.workoutType,
+                                  muscles: workout.targetMuscles,
+                                  goal: workout.goal
+                                }))
+                                router.push('/workout')
+                              }
+                            } else {
+                              // Redirect to generator for quick workouts
+                              router.push('/generate')
+                            }
+                          }}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-3 rounded transition-colors"
+                        >
+                          <i className="fas fa-play mr-1"></i>
+                          Start
+                        </button>
+                        <button
+                          onClick={() => {
+                            // Mark as completed
+                            const updatedWorkouts = scheduledWorkouts.map((w: any) =>
+                              w.id === workout.id ? { ...w, completed: true, completedAt: new Date().toISOString() } : w
+                            )
+                            localStorage.setItem('scheduledWorkouts', JSON.stringify(updatedWorkouts))
+                            window.location.reload()
+                          }}
+                          className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-3 rounded transition-colors"
+                        >
+                          <i className="fas fa-check"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {todaysWorkouts.length > 2 && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-gray-600">+{todaysWorkouts.length - 2}</div>
+                        <div className="text-sm text-gray-500">More workouts</div>
+                        <Link
+                          href="/schedule"
+                          className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                        >
+                          View All
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Link
             href="/generate"
             className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-semibold mb-2">Generate New Workout</h3>
-                <p className="text-emerald-100">Create a personalized routine</p>
+                <h3 className="text-xl font-semibold mb-2">Generate Workout</h3>
+                <p className="text-emerald-100">AI-powered routine creation</p>
               </div>
-              <i className="fas fa-dumbbell text-3xl text-emerald-200"></i>
+              <i className="fas fa-robot text-3xl text-emerald-200"></i>
             </div>
           </Link>
 
           <Link
-            href="/history"
-            className="bg-white border-2 border-emerald-600 hover:bg-emerald-600 text-emerald-600 hover:text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+            href="/custom-workout"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-semibold mb-2">View Full History</h3>
-                <p className="opacity-75">See all your workouts</p>
+                <h3 className="text-xl font-semibold mb-2">Custom Builder</h3>
+                <p className="text-blue-100">Build your own routine</p>
               </div>
-              <i className="fas fa-history text-3xl opacity-50"></i>
+              <i className="fas fa-wrench text-3xl text-blue-200"></i>
+            </div>
+          </Link>
+
+          <Link
+            href="/schedule"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Schedule</h3>
+                <p className="text-purple-100">Plan your workouts</p>
+              </div>
+              <i className="fas fa-calendar-alt text-3xl text-purple-200"></i>
             </div>
           </Link>
         </div>
