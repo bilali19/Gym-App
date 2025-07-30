@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
 import ExerciseCard from '@/components/ExerciseCard'
+import RestTimerSettings from '@/components/RestTimerSettings'
 import type { Exercise } from '@/types'
 
 const WorkoutPage = () => {
@@ -14,6 +15,7 @@ const WorkoutPage = () => {
   
   const [guestWorkout, setGuestWorkout] = useState<Exercise[] | null>(null)
   const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [workoutNotes, setWorkoutNotes] = useState('')
   const [startTime, setStartTime] = useState<Date>(new Date())
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -126,6 +128,15 @@ const WorkoutPage = () => {
                   <div className="text-emerald-200 text-sm">Sets</div>
                 </div>
               )}
+
+              {/* Settings Button */}
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-lg transition-colors duration-200"
+                title="Rest Timer Settings"
+              >
+                <i className="fas fa-cog text-lg"></i>
+              </button>
             </div>
           </div>
           
@@ -247,6 +258,12 @@ const WorkoutPage = () => {
           </div>
         </div>
       )}
+
+      {/* Rest Timer Settings Modal */}
+      <RestTimerSettings
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
     </div>
   )
 }

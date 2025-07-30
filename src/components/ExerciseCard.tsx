@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
 import { EXERCISES } from '@/utils/soldier'
 import { exercisesFlattener } from '@/utils/functions'
+import { useRestTimerPreferences } from '@/hooks/useRestTimerPreferences'
+import RestTimer from './RestTimer'
 import type { ExerciseCardProps, TrackedExercise, CompletedSet } from '@/types'
 
 // Get the flattened exercises with video data
@@ -11,10 +13,16 @@ const allExercises = exercisesFlattener(EXERCISES)
 const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const { user } = useAuth()
   const { currentSession, updateExerciseSet, addExerciseNote } = useWorkoutTracking()
+  const { preferences, getRestTimeForExercise } = useRestTimerPreferences()
   
   const [showVideo, setShowVideo] = useState<boolean>(false)
   const [showNotes, setShowNotes] = useState<boolean>(false)
   const [localNote, setLocalNote] = useState<string>('')
+  
+  // Rest Timer State
+  const [showRestTimer, setShowRestTimer] = useState<boolean>(false)
+  const [restDuration, setRestDuration] = useState<number>(0)
+  const [completedSetNumber, setCompletedSetNumber] = useState<number>(0)
   
   // For guest users or non-tracked exercises, use local state
   const [guestSetsCompleted, setGuestSetsCompleted] = useState<number>(0)
@@ -53,16 +61,36 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       // For logged-in users with active session
       const currentSet = sets.find(s => s.id === setId)
       if (currentSet) {
+        const wasCompleted = currentSet.completed
         await updateExerciseSet(exerciseData.id, setId, {
           completed: !currentSet.completed,
           actualReps: currentSet.actualReps || parseInt(exercise.reps?.toString() || '0'),
           weight: currentSet.weight || 0
         })
+
+        // Start rest timer if set was just completed and auto-start is enabled
+        if (!wasCompleted && !currentSet.completed && preferences.autoStart) {
+          const remainingSets = sets.filter(s => !s.completed && s.id !== setId)
+          if (remainingSets.length > 0) { // More sets remaining
+            setCompletedSetNumber(currentSet.setNumber)
+            const restTime = getRestTimeForExercise(exercise.type, exercise.rest)
+            setRestDuration(restTime)
+            setShowRestTimer(true)
+          }
+        }
       }
     } else {
       // For guest users
       const newCount = (guestSetsCompleted + 1) % 6
       setGuestSetsCompleted(newCount)
+      
+      // Start rest timer for guest users too (if not the last set and auto-start enabled)
+      if (newCount > 0 && newCount < 5 && preferences.autoStart) {
+        setCompletedSetNumber(newCount)
+        const restTime = getRestTimeForExercise(exercise.type, exercise.rest)
+        setRestDuration(restTime)
+        setShowRestTimer(true)
+      }
     }
   }
 
@@ -83,6 +111,20 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
 
   const toggleVideo = (): void => {
     setShowVideo(!showVideo)
+  }
+
+  // Rest Timer Handlers
+  const handleRestComplete = () => {
+    setShowRestTimer(false)
+    // Optional: You could add a notification or highlight the next set here
+  }
+
+  const handleRestSkip = () => {
+    setShowRestTimer(false)
+  }
+
+  const handleRestAdjust = (newDuration: number) => {
+    setRestDuration(newDuration)
   }
 
   return (
@@ -290,6 +332,17 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
           <div className='text-sm text-blue-800'>{exerciseData.notes}</div>
         </div>
       )}
+
+      {/* Rest Timer */}
+      <RestTimer
+        isActive={showRestTimer}
+        duration={restDuration}
+        onComplete={handleRestComplete}
+        onSkip={handleRestSkip}
+        onAdjust={handleRestAdjust}
+        exerciseName={exercise.name}
+        setNumber={completedSetNumber + 1} // Next set number
+      />
     </div>
   )
 }
