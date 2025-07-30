@@ -15,10 +15,10 @@ const InlineRestTimer: React.FC<{
   duration: number
   onComplete: () => void
   setNumber: number
-}> = ({ duration, onComplete, setNumber }) => {
+  soundEnabled: boolean
+}> = ({ duration, onComplete, setNumber, soundEnabled }) => {
   const [timeLeft, setTimeLeft] = useState(duration)
   const [isFinished, setIsFinished] = useState(false)
-  const { preferences } = useRestTimerPreferences()
   const startTimeRef = useRef<number>(performance.now())
   const animationRef = useRef<number | null>(null)
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -28,6 +28,12 @@ const InlineRestTimer: React.FC<{
     startTimeRef.current = performance.now()
     setTimeLeft(duration)
     setIsFinished(false)
+    
+    // Clear any existing intervals
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current)
+      beepIntervalRef.current = null
+    }
   }, [duration])
 
   useEffect(() => {
@@ -41,7 +47,7 @@ const InlineRestTimer: React.FC<{
         setIsFinished(true)
         
         // Play initial sound and start continuous beeping
-        if (preferences.soundEnabled) {
+        if (soundEnabled) {
           playBeepSound()
           // Start continuous beeping every 3 seconds
           beepIntervalRef.current = setInterval(() => {
@@ -68,7 +74,7 @@ const InlineRestTimer: React.FC<{
         clearInterval(beepIntervalRef.current)
       }
     }
-  }, [duration, onComplete, preferences.soundEnabled, isFinished])
+  }, [duration, onComplete, soundEnabled, isFinished])
 
   const playBeepSound = () => {
     try {
@@ -138,7 +144,7 @@ const InlineRestTimer: React.FC<{
 const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const { user } = useAuth()
   const { currentSession, updateExerciseSet, addExerciseNote } = useWorkoutTracking()
-  const { preferences, getRestTimeForExercise } = useRestTimerPreferences()
+  const { preferences } = useRestTimerPreferences() // Only for auto-start and sound settings
   
   const [showVideo, setShowVideo] = useState<boolean>(false)
   const [showNotes, setShowNotes] = useState<boolean>(false)
@@ -151,6 +157,27 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   
   // For guest users or non-tracked exercises, use local state
   const [guestSetsCompleted, setGuestSetsCompleted] = useState<number>(0)
+
+  // Function to get current rest time from localStorage
+  const getCurrentRestTime = (exerciseType: 'compound' | 'accessory'): number => {
+    try {
+      const savedPrefs = localStorage.getItem('restTimerPreferences')
+      console.log('🔧 Reading localStorage:', savedPrefs)
+      
+      if (savedPrefs) {
+        const prefs = JSON.parse(savedPrefs)
+        console.log('🔧 Parsed prefs:', prefs.defaultRestTimes)
+        const restTime = prefs.defaultRestTimes[exerciseType]
+        console.log('🔧 Rest time for', exerciseType, ':', restTime)
+        return restTime || (exerciseType === 'compound' ? 120 : 60)
+      }
+    } catch (error) {
+      console.error('Error reading rest timer preferences:', error)
+    }
+    // Fallback to defaults
+    console.log('🔧 Using fallback for', exerciseType)
+    return exerciseType === 'compound' ? 120 : 60
+  }
 
   // Get the exercise data from current session or use the passed exercise
   const exerciseData = currentSession?.exercises[i] || exercise
@@ -197,9 +224,30 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
         if (!wasCompleted && currentSet.completed && preferences.autoStart) {
           const remainingSets = sets.filter(s => !s.completed)
           if (remainingSets.length > 0) { // More sets remaining
-            const restTime = getRestTimeForExercise(exercise.type)
+            // Force fresh read from localStorage every time
+            const exerciseType: 'compound' | 'accessory' = exercise.type === 'compound' ? 'compound' : 'accessory'
+            
+            // Read directly each time to avoid any caching issues
+            const freshPrefs = localStorage.getItem('restTimerPreferences')
+            let restTime = exerciseType === 'compound' ? 120 : 60 // fallback
+            
+            if (freshPrefs) {
+              try {
+                const parsed = JSON.parse(freshPrefs)
+                restTime = parsed.defaultRestTimes[exerciseType] || restTime
+              } catch (e) {
+                console.error('Error parsing preferences:', e)
+              }
+            }
+            
+            console.log('🔧 DIRECT READ:', {
+              exerciseType,
+              freshPrefs,
+              restTime,
+              setNumber: currentSet.setNumber
+            })
+            
             setRestDuration(restTime)
-            // Set the timer for the NEXT set (first incomplete set)
             setRestingSetId(remainingSets[0].id)
           }
         }
@@ -211,7 +259,12 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       
       // Start rest timer for guest users too (if not the last set and auto-start enabled)
       if (newCount > 0 && newCount < 5 && preferences.autoStart) {
-        const restTime = getRestTimeForExercise(exercise.type)
+        // Use current rest time from localStorage
+        const exerciseType: 'compound' | 'accessory' = exercise.type === 'compound' ? 'compound' : 'accessory'
+        const restTime = getCurrentRestTime(exerciseType)
+        
+        console.log('🔧 Guest fresh rest time:', restTime, 'for', exerciseType, 'exercise')
+        
         setRestDuration(restTime)
         // Set timer for the next set
         setRestingSetId(`guest-${newCount}`)
@@ -235,6 +288,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   }
 
   const handleRestComplete = () => {
+    console.log('🔧 Timer completed! Clearing:', { restingSetId, restDuration })
     setRestingSetId(null)
   }
 
@@ -374,14 +428,6 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
         <div className='mt-4'>
           <div className="flex items-center justify-between mb-3">
             <h4 className='text-gray-700 font-medium'>Track Your Sets</h4>
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors"
-              title="Rest Timer Settings"
-            >
-              <i className="fas fa-cog mr-1"></i>
-              Timer Settings
-            </button>
           </div>
           <div className='grid grid-cols-1 gap-3'>
             {sets.map((set, index) => {
@@ -410,12 +456,14 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
                       </button>
                       <span className='font-medium text-gray-900'>Set {set.setNumber}</span>
                       
-                      {/* Show timer if this set is resting OR if it's the next set and we have a timer */}
-                      {(isResting || (isNextSet && restingSetId)) && (
+                      {/* Show timer if this set is resting */}
+                      {isResting && (
                         <InlineRestTimer
+                          key={`${set.id}-${restDuration}`}
                           duration={restDuration}
                           onComplete={handleRestComplete}
                           setNumber={set.setNumber}
+                          soundEnabled={preferences.soundEnabled}
                         />
                       )}
                     </div>
@@ -460,13 +508,6 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
         <div className="mt-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className='text-gray-700 font-medium'>Track Your Sets</h4>
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors"
-            >
-              <i className="fas fa-cog mr-1"></i>
-              Timer Settings
-            </button>
           </div>
           
           <div className="grid grid-cols-5 gap-2 mb-4">
@@ -488,9 +529,11 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
                   {isResting && (
                     <div className="mt-1">
                       <InlineRestTimer
+                        key={`guest-${displayCompletedSets}-${restDuration}`}
                         duration={restDuration}
                         onComplete={handleRestComplete}
                         setNumber={setNum}
+                        soundEnabled={preferences.soundEnabled}
                       />
                     </div>
                   )}
@@ -516,12 +559,6 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
           <div className='text-sm text-blue-800'>{exerciseData.notes}</div>
         </div>
       )}
-
-      {/* Rest Timer Settings Modal */}
-      <RestTimerSettings
-        isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-      />
     </div>
   )
 }
