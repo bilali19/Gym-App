@@ -24,7 +24,6 @@ const defaultPreferences: RestTimerPreferences = {
 
 export const useRestTimerPreferences = () => {
   const [preferences, setPreferences] = useState<RestTimerPreferences>(defaultPreferences)
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
 
   // Load preferences from localStorage on mount
   useEffect(() => {
@@ -37,11 +36,6 @@ export const useRestTimerPreferences = () => {
         console.error('Failed to parse rest timer preferences:', error)
       }
     }
-
-    // Check current notification permission
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission)
-    }
   }, [])
 
   // Save preferences to localStorage whenever they change
@@ -53,13 +47,26 @@ export const useRestTimerPreferences = () => {
     setPreferences(prev => ({ ...prev, ...updates }))
   }
 
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      const permission = await Notification.requestPermission()
-      setNotificationPermission(permission)
-      return permission === 'granted'
+  const requestNotificationPermission = async (): Promise<boolean> => {
+    if (!('Notification' in window)) {
+      return false
     }
-    return false
+
+    if (Notification.permission === 'granted') {
+      return true
+    }
+
+    if (Notification.permission === 'denied') {
+      return false
+    }
+
+    try {
+      const permission = await Notification.requestPermission()
+      return permission === 'granted'
+    } catch (error) {
+      console.error('Error requesting notification permission:', error)
+      return false
+    }
   }
 
   const getRestTimeForExercise = (exerciseType: 'compound' | 'accessory', exerciseRestTime?: number) => {
@@ -67,33 +74,10 @@ export const useRestTimerPreferences = () => {
     return exerciseRestTime || preferences.defaultRestTimes[exerciseType]
   }
 
-  const showNotification = (title: string, body: string, exerciseName?: string) => {
-    if (preferences.browserNotificationsEnabled && notificationPermission === 'granted') {
-      const notification = new Notification(title, {
-        body,
-        icon: '/favicon.ico', // Use your app's icon
-        badge: '/favicon.ico',
-        tag: 'rest-timer', // This replaces previous notifications
-        requireInteraction: false,
-        silent: !preferences.soundEnabled // Don't play default notification sound if our custom sound is enabled
-      })
-
-      // Auto-close notification after 5 seconds
-      setTimeout(() => {
-        notification.close()
-      }, 5000)
-
-      return notification
-    }
-    return null
-  }
-
   return {
     preferences,
     updatePreferences,
     getRestTimeForExercise,
-    notificationPermission,
-    requestNotificationPermission,
-    showNotification
+    requestNotificationPermission
   }
 }

@@ -7,12 +7,7 @@ interface RestTimerSettingsProps {
 }
 
 const RestTimerSettings: React.FC<RestTimerSettingsProps> = ({ isOpen, onClose }) => {
-  const { 
-    preferences, 
-    updatePreferences, 
-    notificationPermission, 
-    requestNotificationPermission 
-  } = useRestTimerPreferences()
+  const { preferences, updatePreferences, requestNotificationPermission } = useRestTimerPreferences()
 
   if (!isOpen) return null
 
@@ -22,21 +17,24 @@ const RestTimerSettings: React.FC<RestTimerSettingsProps> = ({ isOpen, onClose }
     return secs === 0 ? `${mins}m` : `${mins}m ${secs}s`
   }
 
-  const handleBrowserNotificationsToggle = async () => {
-    if (preferences.browserNotificationsEnabled) {
-      // Disable notifications
-      updatePreferences({ browserNotificationsEnabled: false })
-    } else {
-      // Request permission and enable if granted
+  const handleNotificationToggle = async () => {
+    if (!preferences.browserNotificationsEnabled) {
+      // Try to enable notifications
       const granted = await requestNotificationPermission()
       if (granted) {
         updatePreferences({ browserNotificationsEnabled: true })
       }
+    } else {
+      // Disable notifications
+      updatePreferences({ browserNotificationsEnabled: false })
     }
   }
 
-  const isDesktop = typeof window !== 'undefined' && !('ontouchstart' in window)
-  const hasNotificationSupport = typeof window !== 'undefined' && 'Notification' in window
+  const isMobile = (): boolean => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           ('ontouchstart' in window) ||
+           (navigator.maxTouchPoints > 0)
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -77,7 +75,7 @@ const RestTimerSettings: React.FC<RestTimerSettingsProps> = ({ isOpen, onClose }
           <div className="flex items-center justify-between">
             <div>
               <h4 className="font-medium text-gray-900">Sound Notifications</h4>
-              <p className="text-sm text-gray-600">Play sound when rest time is complete</p>
+              <p className="text-sm text-gray-600">Play beep sound when rest time is complete</p>
             </div>
             <button
               onClick={() => updatePreferences({ soundEnabled: !preferences.soundEnabled })}
@@ -94,68 +92,49 @@ const RestTimerSettings: React.FC<RestTimerSettingsProps> = ({ isOpen, onClose }
           </div>
 
           {/* Browser Notifications Setting */}
-          {hasNotificationSupport && (
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-900">Browser Notifications</h4>
+              <p className="text-sm text-gray-600">Show popup notification when rest time is complete</p>
+            </div>
+            <button
+              onClick={handleNotificationToggle}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                preferences.browserNotificationsEnabled ? 'bg-emerald-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  preferences.browserNotificationsEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Vibration Setting - Only show on mobile */}
+          {isMobile() && (
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                  Browser Notifications
-                  {isDesktop && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Desktop</span>}
+                  Vibration
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Mobile</span>
                 </h4>
-                <p className="text-sm text-gray-600">
-                  Show notification popup when rest time is complete
-                  {notificationPermission === 'denied' && (
-                    <span className="text-red-600 block">Permission denied. Enable in browser settings.</span>
-                  )}
-                </p>
+                <p className="text-sm text-gray-600">Vibrate device when rest time is complete</p>
               </div>
               <button
-                onClick={handleBrowserNotificationsToggle}
-                disabled={notificationPermission === 'denied'}
+                onClick={() => updatePreferences({ vibrationEnabled: !preferences.vibrationEnabled })}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  preferences.browserNotificationsEnabled && notificationPermission === 'granted'
-                    ? 'bg-emerald-600' 
-                    : 'bg-gray-300'
-                } ${notificationPermission === 'denied' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  preferences.vibrationEnabled ? 'bg-emerald-600' : 'bg-gray-300'
+                }`}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    preferences.browserNotificationsEnabled && notificationPermission === 'granted'
-                      ? 'translate-x-6' 
-                      : 'translate-x-1'
+                    preferences.vibrationEnabled ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>
             </div>
           )}
-
-          {/* Vibration Setting */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                Vibration
-                {!isDesktop && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Mobile</span>}
-              </h4>
-              <p className="text-sm text-gray-600">
-                {isDesktop 
-                  ? 'Vibration not available on desktop devices'
-                  : 'Vibrate device when rest time is complete'
-                }
-              </p>
-            </div>
-            <button
-              onClick={() => updatePreferences({ vibrationEnabled: !preferences.vibrationEnabled })}
-              disabled={isDesktop}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                preferences.vibrationEnabled && !isDesktop ? 'bg-emerald-600' : 'bg-gray-300'
-              } ${isDesktop ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  preferences.vibrationEnabled && !isDesktop ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
 
           {/* Default Rest Times */}
           <div>
@@ -214,56 +193,21 @@ const RestTimerSettings: React.FC<RestTimerSettingsProps> = ({ isOpen, onClose }
             </div>
           </div>
 
-          {/* Platform-specific Info Box */}
+          {/* Info Box */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-3">
               <i className="fas fa-info-circle text-blue-600 mt-0.5"></i>
               <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">
-                  {isDesktop ? 'Desktop Notifications:' : 'Mobile Notifications:'}
-                </p>
+                <p className="font-medium mb-1">Rest Timer Features:</p>
                 <ul className="space-y-1 text-xs">
-                  {isDesktop ? (
-                    <>
-                      <li>• Sound alerts work in all browsers</li>
-                      <li>• Browser notifications appear in system tray</li>
-                      <li>• Notifications work even if tab is not active</li>
-                      <li>• Vibration not available on desktop devices</li>
-                    </>
-                  ) : (
-                    <>
-                      <li>• Sound alerts work when app is active</li>
-                      <li>• Vibration works on most mobile devices</li>
-                      <li>• Browser notifications may require permission</li>
-                      <li>• Keep app open for best notification experience</li>
-                    </>
-                  )}
+                  <li>• Timers appear next to your next set automatically</li>
+                  <li>• Sound alerts help you stay focused during rest</li>
+                  <li>• Notifications work even when the app isn't active</li>
+                  {isMobile() && <li>• Vibration alerts for mobile devices</li>}
                 </ul>
               </div>
             </div>
           </div>
-
-          {/* Test Notification Button */}
-          {hasNotificationSupport && notificationPermission === 'granted' && (
-            <div className="pt-4 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  // Test notification functionality
-                  if (preferences.browserNotificationsEnabled) {
-                    new Notification('FitForce Rest Timer', {
-                      body: 'This is a test notification! Your rest timer alerts will look like this.',
-                      icon: '/favicon.ico',
-                      tag: 'rest-timer-test'
-                    })
-                  }
-                }}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
-              >
-                <i className="fas fa-bell mr-2"></i>
-                Test Notification
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Footer */}

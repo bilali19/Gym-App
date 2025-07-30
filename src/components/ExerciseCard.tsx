@@ -1,14 +1,139 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
 import { EXERCISES } from '@/utils/soldier'
 import { exercisesFlattener } from '@/utils/functions'
 import { useRestTimerPreferences } from '@/hooks/useRestTimerPreferences'
-import RestTimer from './RestTimer'
+import RestTimerSettings from './RestTimerSettings'
 import type { ExerciseCardProps, TrackedExercise, CompletedSet } from '@/types'
 
 // Get the flattened exercises with video data
 const allExercises = exercisesFlattener(EXERCISES)
+
+// Inline Timer Component
+const InlineRestTimer: React.FC<{
+  duration: number
+  onComplete: () => void
+  setNumber: number
+}> = ({ duration, onComplete, setNumber }) => {
+  const [timeLeft, setTimeLeft] = useState(duration)
+  const [isFinished, setIsFinished] = useState(false)
+  const { preferences } = useRestTimerPreferences()
+  const startTimeRef = useRef<number>(performance.now())
+  const animationRef = useRef<number | null>(null)
+  const beepIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    // Reset start time when duration changes
+    startTimeRef.current = performance.now()
+    setTimeLeft(duration)
+    setIsFinished(false)
+  }, [duration])
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const elapsed = (performance.now() - startTimeRef.current) / 1000
+      const remaining = Math.max(0, duration - elapsed)
+      
+      setTimeLeft(Math.ceil(remaining))
+      
+      if (remaining <= 0 && !isFinished) {
+        setIsFinished(true)
+        
+        // Play initial sound and start continuous beeping
+        if (preferences.soundEnabled) {
+          playBeepSound()
+          // Start continuous beeping every 3 seconds
+          beepIntervalRef.current = setInterval(() => {
+            playBeepSound()
+          }, 3000)
+        }
+        
+        onComplete()
+        return
+      }
+      
+      if (remaining > 0) {
+        animationRef.current = requestAnimationFrame(updateTimer)
+      }
+    }
+    
+    updateTimer()
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+      if (beepIntervalRef.current) {
+        clearInterval(beepIntervalRef.current)
+      }
+    }
+  }, [duration, onComplete, preferences.soundEnabled, isFinished])
+
+  const playBeepSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      
+      // Shorter, gentler beep for continuous alerts
+      oscillator.frequency.setValueAtTime(600, audioContext.currentTime)
+      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+      
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + 0.3)
+    } catch (error) {
+      console.log('Could not play sound:', error)
+    }
+  }
+
+  const handleDismiss = () => {
+    setIsFinished(false)
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current)
+      beepIntervalRef.current = null
+    }
+    onComplete()
+  }
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const getTimerColor = (): string => {
+    if (isFinished) return 'text-green-600 animate-pulse'
+    if (timeLeft <= 5) return 'text-red-500 animate-pulse'
+    if (timeLeft <= 15) return 'text-orange-500'
+    return 'text-emerald-600'
+  }
+
+  return (
+    <div className="flex items-center gap-2 ml-2">
+      <div className={`text-sm font-mono font-bold ${getTimerColor()}`}>
+        {isFinished ? '✅ Ready!' : `⏱️ ${formatTime(timeLeft)}`}
+      </div>
+      {isFinished && (
+        <button
+          onClick={handleDismiss}
+          className="text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded transition-colors animate-pulse"
+        >
+          Dismiss
+        </button>
+      )}
+      {timeLeft <= 5 && !isFinished && (
+        <div className="text-xs text-red-500 animate-bounce">
+          Almost!
+        </div>
+      )}
+    </div>
+  )
+}
 
 const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const { user } = useAuth()
@@ -18,11 +143,11 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const [showVideo, setShowVideo] = useState<boolean>(false)
   const [showNotes, setShowNotes] = useState<boolean>(false)
   const [localNote, setLocalNote] = useState<string>('')
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false)
   
-  // Rest Timer State
-  const [showRestTimer, setShowRestTimer] = useState<boolean>(false)
+  // Rest timer state - track which set is currently resting
+  const [restingSetId, setRestingSetId] = useState<string | null>(null)
   const [restDuration, setRestDuration] = useState<number>(0)
-  const [completedSetNumber, setCompletedSetNumber] = useState<number>(0)
   
   // For guest users or non-tracked exercises, use local state
   const [guestSetsCompleted, setGuestSetsCompleted] = useState<number>(0)
@@ -50,7 +175,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const displayCompletedSets = currentSession ? completedSets : guestSetsCompleted
 
   // Initialize local note with existing note
-  React.useEffect(() => {
+  useEffect(() => {
     if (isTrackedExercise(exerciseData) && exerciseData.notes) {
       setLocalNote(exerciseData.notes)
     }
@@ -69,13 +194,13 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
         })
 
         // Start rest timer if set was just completed and auto-start is enabled
-        if (!wasCompleted && !currentSet.completed && preferences.autoStart) {
-          const remainingSets = sets.filter(s => !s.completed && s.id !== setId)
+        if (!wasCompleted && currentSet.completed && preferences.autoStart) {
+          const remainingSets = sets.filter(s => !s.completed)
           if (remainingSets.length > 0) { // More sets remaining
-            setCompletedSetNumber(currentSet.setNumber)
             const restTime = getRestTimeForExercise(exercise.type, exercise.rest)
             setRestDuration(restTime)
-            setShowRestTimer(true)
+            // Set the timer for the NEXT set (first incomplete set)
+            setRestingSetId(remainingSets[0].id)
           }
         }
       }
@@ -86,10 +211,10 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       
       // Start rest timer for guest users too (if not the last set and auto-start enabled)
       if (newCount > 0 && newCount < 5 && preferences.autoStart) {
-        setCompletedSetNumber(newCount)
         const restTime = getRestTimeForExercise(exercise.type, exercise.rest)
         setRestDuration(restTime)
-        setShowRestTimer(true)
+        // Set timer for the next set
+        setRestingSetId(`guest-${newCount}`)
       }
     }
   }
@@ -109,22 +234,12 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
     setShowNotes(false)
   }
 
+  const handleRestComplete = () => {
+    setRestingSetId(null)
+  }
+
   const toggleVideo = (): void => {
     setShowVideo(!showVideo)
-  }
-
-  // Rest Timer Handlers
-  const handleRestComplete = () => {
-    setShowRestTimer(false)
-    // Optional: You could add a notification or highlight the next set here
-  }
-
-  const handleRestSkip = () => {
-    setShowRestTimer(false)
-  }
-
-  const handleRestAdjust = (newDuration: number) => {
-    setRestDuration(newDuration)
   }
 
   return (
@@ -257,72 +372,151 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       {/* Individual Set Tracking for Logged-in Users */}
       {currentSession && user && isTrackedExercise(exerciseData) && (
         <div className='mt-4'>
-          <h4 className='text-gray-700 font-medium mb-3'>Track Your Sets</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className='text-gray-700 font-medium'>Track Your Sets</h4>
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors"
+              title="Rest Timer Settings"
+            >
+              <i className="fas fa-cog mr-1"></i>
+              Timer Settings
+            </button>
+          </div>
           <div className='grid grid-cols-1 gap-3'>
-            {sets.map((set) => (
-              <div key={set.id} className={`border-2 rounded-lg p-3 transition-all ${
-                set.completed 
-                  ? 'border-emerald-500 bg-emerald-50' 
-                  : 'border-gray-300 bg-white hover:border-emerald-300'
-              }`}>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-3'>
-                    <button
-                      onClick={() => handleSetToggle(set.id)}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                        set.completed
-                          ? 'bg-emerald-600 text-white'
-                          : 'border-2 border-gray-300 hover:border-emerald-500'
-                      }`}
-                    >
-                      {set.completed && <i className='fas fa-check text-sm'></i>}
-                    </button>
-                    <span className='font-medium text-gray-900'>Set {set.setNumber}</span>
+            {sets.map((set, index) => {
+              const isNextSet = !set.completed && index === completedSets
+              const isResting = restingSetId === set.id
+              
+              return (
+                <div key={set.id} className={`border-2 rounded-lg p-3 transition-all ${
+                  set.completed 
+                    ? 'border-emerald-500 bg-emerald-50' 
+                    : isNextSet
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-300 bg-white hover:border-emerald-300'
+                }`}>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-3'>
+                      <button
+                        onClick={() => handleSetToggle(set.id)}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                          set.completed
+                            ? 'bg-emerald-600 text-white'
+                            : 'border-2 border-gray-300 hover:border-emerald-500'
+                        }`}
+                      >
+                        {set.completed && <i className='fas fa-check text-sm'></i>}
+                      </button>
+                      <span className='font-medium text-gray-900'>Set {set.setNumber}</span>
+                      
+                      {/* Show timer if this set is resting OR if it's the next set and we have a timer */}
+                      {(isResting || (isNextSet && restingSetId)) && (
+                        <InlineRestTimer
+                          duration={restDuration}
+                          onComplete={handleRestComplete}
+                          setNumber={set.setNumber}
+                        />
+                      )}
+                      
+                      {/* Only show "Next Set" if no timer is running */}
+                      {isNextSet && !restingSetId && (
+                        <div className="text-blue-600 text-sm font-medium">
+                          ← Next Set
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className='flex items-center gap-2'>
+                      {exercise.unit === 'reps' && (
+                        <>
+                          <input
+                            type="number"
+                            placeholder="Reps"
+                            value={set.actualReps || ''}
+                            onChange={(e) => handleSetDataUpdate(set.id, 'actualReps', parseInt(e.target.value) || 0)}
+                            className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
+                          />
+                          <input
+                            type="number"
+                            placeholder="Weight"
+                            value={set.weight || ''}
+                            onChange={(e) => handleSetDataUpdate(set.id, 'weight', parseInt(e.target.value) || 0)}
+                            className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
+                          />
+                          <span className='text-xs text-gray-500'>lbs</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className='flex items-center gap-2'>
-                    {exercise.unit === 'reps' && (
-                      <>
-                        <input
-                          type="number"
-                          placeholder="Reps"
-                          value={set.actualReps || ''}
-                          onChange={(e) => handleSetDataUpdate(set.id, 'actualReps', parseInt(e.target.value) || 0)}
-                          className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
-                        />
-                        <input
-                          type="number"
-                          placeholder="Weight"
-                          value={set.weight || ''}
-                          onChange={(e) => handleSetDataUpdate(set.id, 'weight', parseInt(e.target.value) || 0)}
-                          className='w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center'
-                        />
-                        <span className='text-xs text-gray-500'>lbs</span>
-                      </>
-                    )}
-                  </div>
+                  {set.completed && set.completedAt && (
+                    <div className='mt-2 text-xs text-emerald-600'>
+                      ✓ Completed at {new Date(set.completedAt).toLocaleTimeString()}
+                    </div>
+                  )}
                 </div>
-                
-                {set.completed && set.completedAt && (
-                  <div className='mt-2 text-xs text-emerald-600'>
-                    ✓ Completed at {new Date(set.completedAt).toLocaleTimeString()}
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
 
       {/* Simple Set Counter for Guest Users */}
       {!currentSession && (
-        <button 
-          onClick={() => handleSetToggle('')}
-          className='mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200'
-        >
-          <i className='fas fa-plus mr-2'></i>
-          Mark Set Complete ({displayCompletedSets}/5)
-        </button>
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className='text-gray-700 font-medium'>Track Your Sets</h4>
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition-colors"
+            >
+              <i className="fas fa-cog mr-1"></i>
+              Timer Settings
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-5 gap-2 mb-4">
+            {[1, 2, 3, 4, 5].map((setNum) => {
+              const isCompleted = setNum <= displayCompletedSets
+              const isNext = setNum === displayCompletedSets + 1
+              const isResting = restingSetId === `guest-${displayCompletedSets}` && setNum === displayCompletedSets + 1
+              
+              return (
+                <div key={setNum} className={`p-2 rounded-lg border-2 text-center ${
+                  isCompleted 
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                    : isNext
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 bg-white text-gray-500'
+                }`}>
+                  <div className="text-sm font-medium">Set {setNum}</div>
+                  {isCompleted && <i className="fas fa-check text-emerald-600"></i>}
+                  {isResting && (
+                    <div className="mt-1">
+                      <InlineRestTimer
+                        duration={restDuration}
+                        onComplete={handleRestComplete}
+                        setNumber={setNum}
+                      />
+                    </div>
+                  )}
+                  {isNext && !isResting && (
+                    <div className="text-xs text-blue-600 mt-1">Next</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          
+          <button 
+            onClick={() => handleSetToggle('')}
+            className='w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200'
+          >
+            <i className='fas fa-plus mr-2'></i>
+            Mark Set Complete ({displayCompletedSets}/5)
+          </button>
+        </div>
       )}
 
       {/* Saved Notes Display */}
@@ -333,15 +527,10 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
         </div>
       )}
 
-      {/* Rest Timer */}
-      <RestTimer
-        isActive={showRestTimer}
-        duration={restDuration}
-        onComplete={handleRestComplete}
-        onSkip={handleRestSkip}
-        onAdjust={handleRestAdjust}
-        exerciseName={exercise.name}
-        setNumber={completedSetNumber + 1} // Next set number
+      {/* Rest Timer Settings Modal */}
+      <RestTimerSettings
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
       />
     </div>
   )
