@@ -9,13 +9,16 @@ import type { WorkoutSession } from '@/types'
 const HistoryPage = () => {
   const router = useRouter()
   const { user } = useAuth()
-  const { workoutHistory } = useWorkoutTracking()
+  const { workoutHistory, refreshWorkoutHistory } = useWorkoutTracking()
   
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutSession | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [workoutToDelete, setWorkoutToDelete] = useState<WorkoutSession | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -60,9 +63,46 @@ const HistoryPage = () => {
     setShowDetailsModal(true)
   }
 
+  const handleDeleteClick = (workout: WorkoutSession, event: React.MouseEvent) => {
+    event.stopPropagation() // Prevent triggering the row click
+    setWorkoutToDelete(workout)
+    setShowDeleteModal(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!workoutToDelete) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/workouts/${workoutToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+
+      if (response.ok) {
+        // Refresh the workout history to reflect the deletion
+        await refreshWorkoutHistory()
+        setShowDeleteModal(false)
+        setWorkoutToDelete(null)
+      } else {
+        console.error('Failed to delete workout')
+        // You could add a toast notification here for error handling
+      }
+    } catch (error) {
+      console.error('Error deleting workout:', error)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const closeDetailsModal = () => {
     setSelectedWorkout(null)
     setShowDetailsModal(false)
+  }
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false)
+    setWorkoutToDelete(null)
   }
 
   // Filter workouts based on selected filters
@@ -201,7 +241,8 @@ const HistoryPage = () => {
             {filteredWorkouts.map((workout) => (
               <div
                 key={workout.id}
-                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-300"
+                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-300 cursor-pointer"
+                onClick={() => handleViewDetails(workout)}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   {/* Workout Info */}
@@ -251,7 +292,7 @@ const HistoryPage = () => {
                     )}
                   </div>
 
-                  {/* Quick Stats */}
+                  {/* Quick Stats & Actions */}
                   <div className="lg:text-right">
                     <div className="text-2xl font-bold text-emerald-600 mb-1">
                       {workout.completedSets}
@@ -266,6 +307,17 @@ const HistoryPage = () => {
                         <div className="text-gray-600 text-sm">workout time</div>
                       </div>
                     )}
+
+                    {/* Delete Button */}
+                    <div className="mt-4">
+                      <button
+                        onClick={(e) => handleDeleteClick(workout, e)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
+                      >
+                        <i className="fas fa-trash text-xs"></i>
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -276,12 +328,9 @@ const HistoryPage = () => {
                       <strong>Exercises:</strong> {workout.exercises.slice(0, 3).map(ex => ex.name.replace(/_/g, ' ')).join(', ')}
                       {workout.exercises.length > 3 && ` and ${workout.exercises.length - 3} more`}
                     </div>
-                    <button
-                      onClick={() => handleViewDetails(workout)}
-                      className="text-emerald-600 hover:text-emerald-700 text-sm font-medium hover:bg-emerald-50 px-3 py-1 rounded-lg transition-colors"
-                    >
-                      View Details
-                    </button>
+                    <div className="text-emerald-600 hover:text-emerald-700 text-sm font-medium">
+                      Click to view details
+                    </div>
                   </div>
                 </div>
               </div>
@@ -380,7 +429,52 @@ const HistoryPage = () => {
         </div>
       </div>
 
-      {/* Workout Details Modal */}
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && workoutToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
+              </div>
+              
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Delete Workout?
+              </h3>
+              
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete the "{workoutToDelete.workoutType.replace('_', ' ')}" workout from {formatDate(workoutToDelete.date)}? This action cannot be undone.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={isDeleting}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 disabled:opacity-50 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200"
+                >
+                  {isDeleting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Deleting...
+                    </div>
+                  ) : (
+                    'Delete Workout'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workout Details Modal (existing code) */}
       {showDetailsModal && selectedWorkout && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl">

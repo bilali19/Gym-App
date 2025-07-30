@@ -1,7 +1,12 @@
 import React, { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
+import { EXERCISES } from '@/utils/soldier'
+import { exercisesFlattener } from '@/utils/functions'
 import type { ExerciseCardProps, TrackedExercise, CompletedSet } from '@/types'
+
+// Get the flattened exercises with video data
+const allExercises = exercisesFlattener(EXERCISES)
 
 const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
   const { user } = useAuth()
@@ -16,6 +21,16 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
 
   // Get the exercise data from current session or use the passed exercise
   const exerciseData = currentSession?.exercises[i] || exercise
+  
+  // Get the original exercise data from soldier.ts to access video info
+  const originalExercise = allExercises[exercise.name]
+  
+  // Merge exercise data with original data to ensure we have video info
+  const completeExercise = {
+    ...exercise,
+    videoId: exercise.videoId || originalExercise?.videoId,
+    videoTitle: exercise.videoTitle || originalExercise?.videoTitle
+  }
   
   // Type guard to check if this is a tracked exercise
   const isTrackedExercise = (ex: any): ex is TrackedExercise => {
@@ -84,7 +99,9 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
           <p className='text-sm text-emerald-600 capitalize font-medium bg-emerald-100 px-2 py-1 rounded-md'>
             {exercise.type}
           </p>
-          {exercise.videoId && (
+          
+          {/* Video Button - Show if exercise has videoId */}
+          {completeExercise.videoId && (
             <button
               onClick={toggleVideo}
               className='flex items-center gap-1 text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md transition-colors duration-200 font-medium'
@@ -93,7 +110,9 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
               {showVideo ? 'Hide' : 'Watch'}
             </button>
           )}
-          {user && currentSession && (
+          
+          {/* Notes Button - Show if user is logged in */}
+          {user && (
             <button
               onClick={() => setShowNotes(!showNotes)}
               className='flex items-center gap-1 text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md transition-colors duration-200 font-medium'
@@ -106,18 +125,18 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       </div>
       
       {/* Video Section */}
-      {showVideo && exercise.videoId && (
+      {showVideo && completeExercise.videoId && (
         <div className='w-full'>
           <div className='bg-gray-100 p-4 rounded-lg'>
             <h3 className='text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2'>
               <i className='fa-solid fa-play text-red-500'></i>
-              {exercise.videoTitle || 'Exercise Demonstration'}
+              {completeExercise.videoTitle || 'Exercise Demonstration'}
             </h3>
             <div className='relative w-full' style={{ paddingBottom: '56.25%' }}>
               <iframe
                 className='absolute top-0 left-0 w-full h-full rounded-lg shadow-md'
-                src={`https://www.youtube.com/embed/${exercise.videoId}?rel=0&modestbranding=1`}
-                title={exercise.videoTitle || exercise.name}
+                src={`https://www.youtube.com/embed/${completeExercise.videoId}?rel=0&modestbranding=1`}
+                title={completeExercise.videoTitle || exercise.name}
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
