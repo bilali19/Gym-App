@@ -49,15 +49,32 @@ const RestTimer: React.FC<RestTimerProps> = ({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           setHasCompleted(true)
+          
+          // Sound notification
           if (preferences.soundEnabled) {
             playNotificationSound()
           }
+          
+          // Vibration (mobile only)
           if (preferences.vibrationEnabled) {
-            // Vibrate if supported
             if ('navigator' in window && ('vibrate' in navigator)) {
               navigator.vibrate([200, 100, 200, 100, 200])
             }
           }
+          
+          // Browser notification (desktop & mobile)
+          if (preferences.browserNotificationsEnabled) {
+            if (Notification.permission === 'granted') {
+              new Notification('🏋️ Rest Complete!', {
+                body: `Time to start your next set of ${exerciseName.replace(/_/g, ' ')}`,
+                icon: '/favicon.ico',
+                tag: 'rest-timer',
+                requireInteraction: false,
+                silent: preferences.soundEnabled // Don't play default sound if custom sound is enabled
+              })
+            }
+          }
+          
           onComplete()
           return 0
         }
@@ -70,7 +87,7 @@ const RestTimer: React.FC<RestTimerProps> = ({
         clearInterval(intervalRef.current)
       }
     }
-  }, [isActive, isPaused, hasCompleted, onComplete, preferences.soundEnabled, preferences.vibrationEnabled])
+  }, [isActive, isPaused, hasCompleted, onComplete, preferences, exerciseName])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -85,6 +102,12 @@ const RestTimer: React.FC<RestTimerProps> = ({
     // Create a simple beep sound using Web Audio API
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      
+      // Resume audio context if it's suspended (browser autoplay policy)
+      if (audioContext.state === 'suspended') {
+        audioContext.resume()
+      }
+      
       const oscillator = audioContext.createOscillator()
       const gainNode = audioContext.createGain()
       
@@ -101,8 +124,30 @@ const RestTimer: React.FC<RestTimerProps> = ({
       
       oscillator.start(audioContext.currentTime)
       oscillator.stop(audioContext.currentTime + 0.8)
+      
+      console.log('✅ Notification sound played successfully')
     } catch (error) {
-      console.log('Audio notification not supported')
+      console.error('❌ Audio notification failed:', error)
+      
+      // Fallback: try using a simple HTML5 audio beep
+      try {
+        const audioContext = new AudioContext()
+        const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.1, audioContext.sampleRate)
+        const data = buffer.getChannelData(0)
+        
+        for (let i = 0; i < data.length; i++) {
+          data[i] = Math.sin(2 * Math.PI * 800 * i / audioContext.sampleRate) * 0.3
+        }
+        
+        const source = audioContext.createBufferSource()
+        source.buffer = buffer
+        source.connect(audioContext.destination)
+        source.start()
+        
+        console.log('✅ Fallback sound played')
+      } catch (fallbackError) {
+        console.error('❌ Fallback audio also failed:', fallbackError)
+      }
     }
   }
 
