@@ -197,7 +197,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
         if (!wasCompleted && currentSet.completed && preferences.autoStart) {
           const remainingSets = sets.filter(s => !s.completed)
           if (remainingSets.length > 0) { // More sets remaining
-            const restTime = getRestTimeForExercise(exercise.type, exercise.rest)
+            const restTime = getRestTimeForExercise(exercise.type)
             setRestDuration(restTime)
             // Set the timer for the NEXT set (first incomplete set)
             setRestingSetId(remainingSets[0].id)
@@ -211,7 +211,7 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
       
       // Start rest timer for guest users too (if not the last set and auto-start enabled)
       if (newCount > 0 && newCount < 5 && preferences.autoStart) {
-        const restTime = getRestTimeForExercise(exercise.type, exercise.rest)
+        const restTime = getRestTimeForExercise(exercise.type)
         setRestDuration(restTime)
         // Set timer for the next set
         setRestingSetId(`guest-${newCount}`)
@@ -418,13 +418,6 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
                           setNumber={set.setNumber}
                         />
                       )}
-                      
-                      {/* Only show "Next Set" if no timer is running */}
-                      {isNextSet && !restingSetId && (
-                        <div className="text-blue-600 text-sm font-medium">
-                          ← Next Set
-                        </div>
-                      )}
                     </div>
                     
                     <div className='flex items-center gap-2'>
@@ -500,9 +493,6 @@ const ExerciseCard = ({ exercise, i }: ExerciseCardProps) => {
                         setNumber={setNum}
                       />
                     </div>
-                  )}
-                  {isNext && !isResting && (
-                    <div className="text-xs text-blue-600 mt-1">Next</div>
                   )}
                 </div>
               )
