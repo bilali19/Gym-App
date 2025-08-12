@@ -259,7 +259,7 @@ const GeneratePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-brain text-emerald-600 text-2xl"></i>
+                <i className="fas fa-dumbbell text-emerald-600 text-2xl"></i>
               </div>
               <h4 className="text-lg font-semibold text-gray-900 mb-2">Personalized Workouts</h4>
               <p className="text-gray-600">
@@ -269,7 +269,7 @@ const GeneratePage = () => {
             
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-clock text-blue-600 text-2xl"></i>
+                <i className="fas fa-chart-line text-blue-600 text-2xl"></i>
               </div>
               <h4 className="text-lg font-semibold text-gray-900 mb-2">Progress Tracking</h4>
               <p className="text-gray-600">
@@ -279,7 +279,7 @@ const GeneratePage = () => {
             
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-users text-purple-600 text-2xl"></i>
+                <i className="fas fa-play text-purple-600 text-2xl"></i>
               </div>
               <h4 className="text-lg font-semibold text-gray-900 mb-2">Video Guides</h4>
               <p className="text-gray-600">

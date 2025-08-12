@@ -24,6 +24,7 @@ const Navbar = () => {
     { name: 'Dashboard', href: '/dashboard', authRequired: true },
     { name: 'Progress', href: '/progress', authRequired: true },
     { name: 'History', href: '/history', authRequired: true },
+    { name: 'AI Trainer', href: '/ai-trainer' },
   ]
 
   const filteredNavigation = navigation.filter(item => 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkoutTracking } from '@/contexts/WorkoutTrackingContext'
+import RAGChat from '@/components/RAGChat'
 
 const DashboardPage = () => {
   const router = useRouter()
@@ -285,6 +286,18 @@ const DashboardPage = () => {
             </div>
             <div className="text-gray-600">Top Muscle</div>
           </div>
+        </div>
+
+        {/* AI Assistant Section */}
+        <div className="mb-8">
+          <div className="mb-4">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <i className="fas fa-robot text-emerald-600"></i>
+              AI Fitness Assistant
+            </h2>
+            <p className="text-gray-600">Get personalized fitness advice and exercise guidance</p>
+          </div>
+          <RAGChat />
         </div>
 
         {/* Recent Activity */}
