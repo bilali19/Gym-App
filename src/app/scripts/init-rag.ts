@@ -1,5 +1,4 @@
-import { FitnessKnowledgeIngestion } from '../lib/rag/ingestion'
-
+import { FitnessKnowledgeIngestion } from '@/lib/rag/ingestion'
 async function initializeRAG() {
   console.log('🚀 Initializing RAG system...')
   

@@ -5,7 +5,7 @@ export async function getFitnessAdvice(question: string): Promise<string> {
     console.log('🤖 Asking OpenAI:', question)
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo', // Cheaper option - about $0.002 per 1K tokens
+      model: 'gpt-4o-mini', // Cheaper option - about $0.002 per 1K tokens
       messages: [
         {
           role: 'system',
