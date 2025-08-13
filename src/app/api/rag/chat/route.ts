@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { FitnessRAGSystem } from '@/lib/rag/vectorStore'
+import { getFitnessAdvice } from '@/lib/fitness-ai'
+import { getOfflineFitnessAdviceStructured } from '@/lib/offline-fitness-ai'
 import jwt from 'jsonwebtoken'
-
-const ragSystem = new FitnessRAGSystem()
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,8 +27,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Process the query through RAG
-    const result = await ragSystem.askQuestion(query, userId, sourceType)
+    let result: any
+
+    try {
+      // Try OpenAI simple fitness AI first
+      console.log('🤖 Using OpenAI Simple AI for:', query)
+      const advice = await getFitnessAdvice(query)
+      
+      result = {
+        response: advice,
+        sources: [{
+          content: 'OpenAI Fitness AI',
+          source_type: 'openai_simple',
+          similarity: 0.95
+        }],
+        confidence: 0.95
+      }
+      
+      console.log('✅ OpenAI Simple AI response successful')
+      
+    } catch (error: any) {
+      console.log('⚠️ OpenAI failed, using offline knowledge...', error.message)
+      
+      // Fallback to offline knowledge
+      const offlineResult = getOfflineFitnessAdviceStructured(query)
+      
+      result = {
+        response: `🤖 **Offline AI Response** (OpenAI temporarily unavailable)\n\n${offlineResult.response}\n\n---\n💡 *Full AI services will return once API quota is restored.*`,
+        sources: [{
+          content: 'Offline Knowledge Base',
+          source_type: 'offline_knowledge',
+          similarity: 0.9,
+          category: offlineResult.category
+        }],
+        confidence: offlineResult.confidence
+      }
+    }
 
     return NextResponse.json({
       response: result.response,
@@ -38,10 +71,20 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('RAG Chat error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error('❌ RAG Chat error:', error)
+    
+    // Final emergency fallback
+    const fallbackQuery = 'general fitness advice'
+    const offlineResult = getOfflineFitnessAdviceStructured(fallbackQuery)
+    
+    return NextResponse.json({
+      response: `🤖 **Emergency Offline Mode**\n\n${offlineResult.response}\n\n---\n💡 *All AI services temporarily unavailable.*`,
+      sources: [{
+        content: 'Offline Emergency Knowledge',
+        source_type: 'offline_emergency',
+        similarity: 0.5
+      }],
+      confidence: 0.5
+    })
   }
 }

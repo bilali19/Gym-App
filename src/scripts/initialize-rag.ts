@@ -1,24 +1,30 @@
-import { FitnessKnowledgeIngestion } from '../lib/rag/ingestion'
 
-async function initializeRAG() {
-  console.log('🚀 Initializing FitForce RAG System...')
-  
-  const ingestion = new FitnessKnowledgeIngestion()
+import { FitnessKnowledgeIngestion } from '@/lib/rag/ingestion'
+
+async function initializeRAGSystem() {
+  console.log('🚀 Starting RAG System Initialization...')
   
   try {
-    // Ingest exercise data
+    const ingestion = new FitnessKnowledgeIngestion()
+    
+    console.log('📚 Ingesting exercise knowledge...')
     await ingestion.ingestExercises()
     
-    // Ingest general fitness knowledge
+    console.log('🧠 Ingesting general fitness knowledge...')
     await ingestion.ingestFitnessKnowledge()
     
-    console.log('✅ RAG System initialized successfully!')
+    console.log('✅ RAG System initialization completed successfully!')
+    console.log('🎉 Your AI trainer is now ready with enhanced knowledge!')
+    
   } catch (error) {
     console.error('❌ RAG initialization failed:', error)
+    console.log('💡 Make sure your database tables are set up and OpenAI API key is valid')
   }
 }
 
-// Run initialization
+// Run if called directly
 if (require.main === module) {
-  initializeRAG()
+  initializeRAGSystem()
 }
+
+export { initializeRAGSystem }
